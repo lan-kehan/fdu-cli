@@ -2,6 +2,8 @@
 
 ## 未发布
 
+- 新增 `fdu elearning submit` / MCP `elearning_submit`：复用 UIS 登录会话提交文件、HTML 文本或网址，无需 Canvas API token；支持只读预览、重交保护、提交结果核验和不确定结果提示。新增 `remote-write` 效果及 `SUBMISSION_UNKNOWN` 错误，作业提交作为默认只读约定的唯一远端写入例外。
+
 - `fdu auth export` / `fdu auth import`：把登录状态带到没有屏幕的电脑（虚拟机、服务器）上。带走复旦账号、WebVPN、图书馆、树洞的登录，不带邮箱密码；导出时列出各网站 Cookie 的到期时间。两个命令都不开放给 MCP
 - `fdu status` 显示上次登录 / 导入的时间，以及之前几次登录各保持了多久
 

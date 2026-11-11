@@ -8,7 +8,7 @@
 
 复旦校园服务的命令行和 MCP 服务，给 **Claude Code、Codex** 等 AI 助理用：让它直接查你的课表、作业 DDL、考试、成绩，找空教室、看课程回放文字稿、读教学大纲，查图书馆借阅和校园卡消费，然后替你安排和提建议。
 
-所有命令输出 JSON，对学校系统**全部只读**：不提交作业、不选课、不预约、不续借、不发帖、不发邮件。
+所有命令输出 JSON，默认对学校系统**只读**。唯一的远端写入例外是 `fdu elearning submit`：按用户要求上传附件并提交作业。不选课、不预约、不续借、不发帖、不发邮件。
 
 ## 一分钟上手
 
@@ -68,7 +68,7 @@ args = ["mcp"]
 | 服务 | 命令 | 内容 | 需要 |
 |---|---|---|---|
 | 汇总 | `fdu today`、`fdu week` | 当天 / 当周的课（按教学周和放假安排筛好）、要交的作业、考试 | 复旦账号 |
-| eLearning | `fdu elearning courses / assignments / announcements / files / download`、`fdu todo` | 课程、作业和截止时间、公告、课件列表和下载 | 复旦账号 |
+| eLearning | `fdu elearning courses / assignments / submit / announcements / files / download`、`fdu todo` | 课程、作业查询与提交、截止时间、公告、课件列表和下载 | 复旦账号 |
 | 教务系统 | `fdu jw timetable / exams / grades / gpa / program / selected / semesters / week` | 课表（含研究生）、考试、成绩绩点和排名、培养方案完成情况、选课结果、教学周 | 复旦账号 |
 | 选课参考 | `fdu jw lessons`、`fdu jw syllabus` | 全校开课查询（老师、时间地点、名额）；教学大纲（每周内容、考核方式和权重、教材、教学团队） | 复旦账号 |
 | 课程回放 | `fdu icourse search / lectures / transcript / terms` | iCourse 讲次和课堂文字稿（自动转写，带时间） | 复旦账号 |
@@ -86,6 +86,30 @@ args = ["mcp"]
 | 日历 | `fdu calendar export` | 课表、考试、作业截止导出成 .ics，导入苹果日历 / Outlook / Google 日历 | 复旦账号 |
 
 每个命令的参数和示例：`fdu help <服务>`、`fdu help <服务> <命令>`，或者看 [命令参考](skills/fdu-cli/reference.md)。
+
+### 提交 eLearning 作业
+
+复用 `fdu login` 保存的 eLearning Cookie 会话，写请求自动携带 CSRF 校验信息，**不需要 Canvas API token**。登录过期时先运行 `fdu login`。命令行和 MCP（`elearning_submit`）均可用。
+
+```sh
+fdu elearning assignments --course 数据结构
+# 使用列表里的作业 id；课程关键词必须唯一，也可以直接传课程 id
+fdu elearning submit --course 数据结构 --assignment 123 --file ./作业.pdf --dry-run
+fdu elearning submit --course 数据结构 --assignment 123 --file ./作业.pdf
+# 其他提交方式，与 --file 三选一
+fdu elearning submit --course 456 --assignment 123 --text '<p>我的答案</p>'
+fdu elearning submit --course 456 --assignment 123 --url https://example.com/report
+```
+
+`--dry-run` 只读取作业和当前提交记录、检查本地文件，返回课程、作业、提交方式、内容或文件名/大小、已有提交次数、是否小组作业及是否迟交；不申请上传、不提交。真实提交会再次读取最新状态，不保留服务器草稿。文本按 Canvas 的 HTML 规则处理，可能被平台清理；外部工具、测验等提交方式不支持。
+
+单次支持一个非空文件，最大 200 MB，遵守作业的文件后缀限制。上传同名文件使用改名方式，不覆盖已有文件；MCP 只允许上传当前工作目录内的真实文件（符号链接不能指向目录外）。小组作业会按 Canvas 的小组规则生效，请核对预览中的 `groupAssignment`。
+
+已有提交时必须加 `--resubmit` 才能重交；会占用提交次数。截止时间已过但仍开放的作业可以提交，预览会标记 `late`；尚未开放、已关闭、免交或次数用完的作业会拒绝提交，最终是否接受由学校系统决定。
+
+提交与查询缓存分离，实际操作后清除作业和汇总缓存。上传、提交均不自动重试，也不在自动登录后重跑。只有读取回来的新提交记录与本次请求相符时才返回 `verified: true`。若提交请求结果不明，返回 `SUBMISSION_UNKNOWN`：先去作业网页核对提交时间、次数和附件，不能直接重试。上传后失败可能留下附件；上传成功本身不代表作业提交成功。
+
+实现依据 [Canvas 作业接口](https://developerdocs.instructure.com/services/canvas/resources/submissions) 和 [文件上传协议](https://developerdocs.instructure.com/services/canvas/basics/file.file_uploads)，自动化测试使用虚构接口和数据；网址提交已在复旦实例验证成功（含重交和结果核验），文件上传尚未在复旦实例实测。
 
 ## 登录
 
@@ -146,7 +170,7 @@ fdu describe jw.lessons     # 一个命令的说明（JSON，给 AI 看）
 
 **在服务器、容器、虚拟机里用？** 以 root 运行时会自动给 Chromium 加 `--no-sandbox`，Linux 上会加 `--disable-dev-shm-usage`；还需要别的启动参数时用 `FDU_CHROMIUM_ARGS` 补（空格分开）。`fdu doctor` 的网络检查每项最多等 30 秒并重试一次，结果里有每项耗时。登录要在有图形界面的电脑上完成一次，再把 `~/.config/fdu-cli/default/state.json` 带过去（注意它能代表你登录）。
 
-**能帮我续借、预约场馆、选课吗？** 不能，这个工具对学校系统只读。它会告诉你哪本书快到期、哪个场地有空，操作请到学校网站上自己完成。
+**能帮我续借、预约场馆、选课吗？** 不能，除明确要求的作业提交外，这个工具对学校系统只读。它会告诉你哪本书快到期、哪个场地有空，操作请到学校网站上自己完成。
 
 **iCourse 说「回放还没开放」？** 学校对新回放有审核期，通常一两天后开放。
 

@@ -1,6 +1,6 @@
 import { FduError } from './errors';
 import { isPermissionDenied, isUisLoginUrl, NeedLoginError, PLATFORM_URLS, type FudanAuth, type FudanPlatform, type LoginPage, type PlatformStatus } from './fudan-auth';
-import type { Session } from './session';
+import type { FetchInit, Session } from './session';
 
 const ELEARNING_SELF = `${PLATFORM_URLS.elearning.base}/api/v1/users/self`;
 const JW_HOME = 'https://fdjwgl.fudan.edu.cn/student/home';
@@ -23,10 +23,18 @@ export function safeHeaders(h: Record<string, string>): Record<string, string> {
 /** CanvasClient 等模块用的认证接口：返回标准 Response */
 export function sessionAuth(session: Session): FudanAuth {
   return {
+    csrfToken: (platform) => session.csrfToken(platform),
     async fetch(platform, url, init) {
       const headers: Record<string, string> = {};
       new Headers(init?.headers).forEach((v, k) => { headers[k] = v; });
-      const r = await session.fetch(platform, url, { method: init?.method, headers, body: typeof init?.body === 'string' ? init.body : undefined });
+      let multipart: FetchInit['multipart'];
+      if (init?.body instanceof FormData) {
+        multipart = {};
+        for (const [key, value] of init.body.entries()) {
+          multipart[key] = typeof value === 'string' ? value : { name: value.name, mimeType: value.type || 'application/octet-stream', buffer: Buffer.from(await value.arrayBuffer()) };
+        }
+      }
+      const r = await session.fetch(platform, url, { method: init?.method, headers, body: typeof init?.body === 'string' ? init.body : undefined, multipart, maxRedirects: init?.redirect === 'manual' ? 0 : undefined });
       const nullBody = [101, 204, 205, 304].includes(r.status);
       const res = new Response(nullBody ? null : new Uint8Array(r.body), { status: r.status, headers: safeHeaders(r.headers) });
       Object.defineProperty(res, 'url', { value: r.url });

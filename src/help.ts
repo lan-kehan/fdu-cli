@@ -80,6 +80,7 @@ export function helpOp(op: Op): string {
   const d = describeOp(op);
   const lines = [command(op), '', op.summary, '', `登录：${LOGIN[op.login]}`];
   if (op.sensitive) lines.push('隐私：返回成绩 / 消费 / 借阅 / 邮件等隐私数据，只用来回答你本人的问题');
+  if (op.effect === 'remote-write') lines.push('会上传内容并提交到学校系统，占用提交次数；先用 --dry-run 预览，结果不确定时先核验网页，不能自动重试');
   if (op.effect === 'local-write') lines.push('会在本机写文件（不覆盖已有文件）');
   lines.push(op.mcp === false ? 'MCP：不提供（需要在终端里操作）' : `MCP 工具：${d.mcpTool}`);
   if (d.params.length) {

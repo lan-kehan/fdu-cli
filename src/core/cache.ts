@@ -48,10 +48,10 @@ export class Cache {
     files.forEach(({ f, t }, i) => { if (i >= MAX_FILES || now - t > MAX_AGE) rmSync(this.store.path(`${DIR}/${f}`), { force: true }); });
   }
 
-  clear(): number {
+  clear(ops?: string[]): number {
     let n = 0;
     try {
-      for (const f of readdirSync(this.store.path(DIR))) { if (f.endsWith('.json')) { rmSync(this.store.path(`${DIR}/${f}`), { force: true }); n++; } }
+      for (const f of readdirSync(this.store.path(DIR))) { if (f.endsWith('.json') && (!ops || ops.includes(this.store.readJson<CacheEntry>(`${DIR}/${f}`)?.op ?? ''))) { rmSync(this.store.path(`${DIR}/${f}`), { force: true }); n++; } }
     } catch { /* 还没有缓存 */ }
     return n;
   }

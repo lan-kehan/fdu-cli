@@ -25,7 +25,7 @@ export function referenceMarkdown(): string {
     const d = describeOp(op);
     const g = op.name.split('.')[0];
     if (g !== group) { group = g; const info = GROUPS.find((x) => x.id === g); lines.push(`## ${info?.name ?? g}`, '', ...(info ? [info.desc, ''] : [])); }
-    const tags = [`登录：${LOGIN[op.login]}`, op.effect === 'local-write' ? '会写本机文件' : op.effect === 'auth' ? '登录 / 退出' : '只读', op.sensitive ? '**隐私数据**' : '', op.mcp === false ? '仅命令行' : `MCP：\`${d.mcpTool}\``].filter(Boolean);
+    const tags = [`登录：${LOGIN[op.login]}`, op.effect === 'remote-write' ? '**会提交到学校系统（不自动重试）**' : op.effect === 'local-write' ? '会写本机文件' : op.effect === 'auth' ? '登录 / 退出' : '只读', op.sensitive ? '**隐私数据**' : '', op.mcp === false ? '仅命令行' : `MCP：\`${d.mcpTool}\``].filter(Boolean);
     lines.push(`### \`${d.command}\``, '', op.summary, '', tags.join(' · '), '');
     if (d.params.length) {
       lines.push('| 参数 | 类型 | 必填 | 说明 |', '|---|---|---|---|');

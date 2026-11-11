@@ -162,6 +162,22 @@ var Session = class {
     this.ctx ??= await request.newContext({ storageState: await this.state(), userAgent: UA, timeout: 2e4, proxy: proxyFromEnv() });
     return this.ctx;
   }
+  /** 网页会话的 CSRF 值；不需要用户生成 Canvas API token。只从目标站点的有效 Cookie 读取。 */
+  async csrfToken(platform) {
+    const host = new URL(PLATFORM_URLS[platform].base).hostname;
+    const read = async () => (await this.state())?.cookies.find((c) => c.name === "_csrf_token" && (c.domain === host || c.domain.startsWith(".") && (host === c.domain.slice(1) || host.endsWith(c.domain))) && c.path === "/" && (c.expires <= 0 || c.expires > Date.now() / 1e3))?.value;
+    let value = await read();
+    if (!value) {
+      await this.fetch(platform, `${PLATFORM_URLS[platform].base}/`);
+      value = await read();
+    }
+    if (!value) throw new FduError("NEED_LOGIN", "eLearning \u4F1A\u8BDD\u7F3A\u5C11 CSRF \u6821\u9A8C\u4FE1\u606F\u3002", "\u8FD0\u884C `fdu login` \u540E\u91CD\u8BD5\uFF1B\u4ECD\u5931\u8D25\u8BF7\u5728\u7F51\u9875\u6253\u5F00\u4E00\u6B21\u4F5C\u4E1A\u9875\u9762\u3002");
+    try {
+      return decodeURIComponent(value);
+    } catch {
+      throw new FduError("FORMAT_CHANGED", "eLearning CSRF Cookie \u683C\u5F0F\u5F02\u5E38\u3002", "\u91CD\u65B0\u8FD0\u884C `fdu login`\u3002");
+    }
+  }
   /** 原样请求，不判断是否登录（公开接口、树洞等用） */
   async raw(url, init = {}) {
     const ctx = await this.api();
@@ -171,7 +187,7 @@ var Session = class {
     let res;
     for (let attempt = 0; ; attempt++) {
       try {
-        res = await ctx.fetch(url, { method, headers: init.headers, data: init.body, maxRedirects: 20, timeout: init.timeoutMs ?? 2e4, failOnStatusCode: false });
+        res = await ctx.fetch(url, { method, headers: init.headers, data: init.body, multipart: init.multipart, maxRedirects: init.maxRedirects ?? 20, timeout: init.timeoutMs ?? 2e4, failOnStatusCode: false });
       } catch (e) {
         const kind = transientError(e);
         if (kind === "timeout") retries = Math.min(retries, 1);
@@ -236,7 +252,7 @@ var Session = class {
    * 在浏览器里打开页面，直到 done(page) 返回 true；返回最后一次读到的 HTML（含同源 iframe）。
    * 页面停在统一身份认证超过 stuckOnUisMs 时：无界面模式抛出 NeedLoginError，有界面模式继续等你登录。
    */
-  async withPage(url, done, opts) {
+  async withPage(url, done2, opts) {
     await this.dropBrowserPage();
     const browser = opts.headless ? this.browser ??= await this.launch(true) : await this.launch(false);
     const context = await browser.newContext({ storageState: await this.state(), proxy: proxyFromEnv(), userAgent: UA, viewport: opts.headless ? { width: 1280, height: 900 } : null });
@@ -264,7 +280,7 @@ var Session = class {
           return parts.join('\\n');
         })()`).then((v) => String(v ?? "")).catch(() => "");
         this.lastUrl = page.url();
-        if (await done(page, html)) break;
+        if (await done2(page, html)) break;
       }
       const state = await context.storageState();
       const old = this.ctx;
@@ -544,11 +560,11 @@ var Cache = class {
       if (i >= MAX_FILES || now - t > MAX_AGE) rmSync2(this.store.path(`${DIR}/${f}`), { force: true });
     });
   }
-  clear() {
+  clear(ops) {
     let n = 0;
     try {
       for (const f of readdirSync(this.store.path(DIR))) {
-        if (f.endsWith(".json")) {
+        if (f.endsWith(".json") && (!ops || ops.includes(this.store.readJson(`${DIR}/${f}`)?.op ?? ""))) {
           rmSync2(this.store.path(`${DIR}/${f}`), { force: true });
           n++;
         }
@@ -565,8 +581,8 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z as z3 } from "zod";
 
 // src/ops.ts
-import { accessSync, constants as fsConstants, existsSync as existsSync2, mkdirSync as mkdirSync2, readFileSync as readFileSync2, statSync as statSync2, writeFileSync as writeFileSync2 } from "node:fs";
-import { basename, dirname as dirname2, extname, isAbsolute, join as join2, relative, resolve } from "node:path";
+import { accessSync, closeSync, constants as fsConstants, existsSync as existsSync2, fstatSync, mkdirSync as mkdirSync2, openSync, readFileSync as readFileSync2, realpathSync, statSync as statSync2, writeFileSync as writeFileSync2 } from "node:fs";
+import { basename, dirname as dirname2, extname as extname2, isAbsolute, join as join2, relative, resolve } from "node:path";
 import { z } from "zod";
 
 // src/core/auth.ts
@@ -584,12 +600,20 @@ function safeHeaders(h) {
 }
 function sessionAuth(session) {
   return {
+    csrfToken: (platform) => session.csrfToken(platform),
     async fetch(platform, url, init) {
       const headers = {};
       new Headers(init?.headers).forEach((v, k) => {
         headers[k] = v;
       });
-      const r = await session.fetch(platform, url, { method: init?.method, headers, body: typeof init?.body === "string" ? init.body : void 0 });
+      let multipart;
+      if (init?.body instanceof FormData) {
+        multipart = {};
+        for (const [key, value] of init.body.entries()) {
+          multipart[key] = typeof value === "string" ? value : { name: value.name, mimeType: value.type || "application/octet-stream", buffer: Buffer.from(await value.arrayBuffer()) };
+        }
+      }
+      const r = await session.fetch(platform, url, { method: init?.method, headers, body: typeof init?.body === "string" ? init.body : void 0, multipart, maxRedirects: init?.redirect === "manual" ? 0 : void 0 });
       const nullBody = [101, 204, 205, 304].includes(r.status);
       const res = new Response(nullBody ? null : new Uint8Array(r.body), { status: r.status, headers: safeHeaders(r.headers) });
       Object.defineProperty(res, "url", { value: r.url });
@@ -728,7 +752,7 @@ async function login(session, opts = {}) {
 }
 async function loginAt(session, target, opts = {}) {
   const host = new URL(target.url).hostname;
-  const done = target.done ?? ((u) => {
+  const done2 = target.done ?? ((u) => {
     try {
       return new URL(u).hostname === host && !isUisLoginUrl(u);
     } catch {
@@ -737,7 +761,7 @@ async function loginAt(session, target, opts = {}) {
   });
   const settled = () => {
     let n = 0;
-    return (page) => done(page.url()) ? ++n >= 2 : (n = 0, false);
+    return (page) => done2(page.url()) ? ++n >= 2 : (n = 0, false);
   };
   let ok = false;
   const quiet = settled();
@@ -1524,6 +1548,161 @@ var CanvasClient = class {
       postedAt: a.posted_at,
       htmlUrl: a.html_url
     }));
+  }
+};
+
+// src/services/elearning-submit.ts
+import { extname } from "node:path";
+var MAX_SUBMISSION_BYTES = 200 * 1024 * 1024;
+var done = (s) => ["submitted", "graded", "pending_review"].includes(s.workflow_state);
+var numericId = (v) => typeof v === "number" ? Number.isSafeInteger(v) && v > 0 : typeof v === "string" && /^[1-9]\d*$/.test(v);
+var bad = (message) => new FduError("BAD_ARGS", message, "\u7528 `fdu elearning assignments --course <\u8BFE\u7A0B>` \u6838\u5BF9\u4F5C\u4E1A\uFF0C\u6216\u6253\u5F00\u4F5C\u4E1A\u7F51\u9875\u67E5\u770B\u8981\u6C42\u3002");
+var CanvasSubmitClient = class {
+  constructor(auth) {
+    this.auth = auth;
+  }
+  auth;
+  base = PLATFORM_URLS.elearning.base;
+  async json(url, init) {
+    const res = await this.auth.fetch("elearning", url, init);
+    if (isUisLoginUrl(res.url)) throw new NeedLoginError("elearning");
+    if (res.status === 401 && !await isPermissionDenied(res)) throw new NeedLoginError("elearning");
+    if ([401, 403].includes(res.status)) throw new FduError("PERMISSION", "eLearning \u62D2\u7EDD\u4E86\u8BF7\u6C42\uFF08\u6743\u9650\u4E0D\u8DB3\u6216 CSRF \u4F1A\u8BDD\u5931\u6548\uFF09\u3002", "\u8FD0\u884C `fdu login`\uFF0C\u5E76\u5728\u4F5C\u4E1A\u7F51\u9875\u786E\u8BA4\u4F60\u53EF\u4EE5\u63D0\u4EA4\u3002");
+    if (res.status === 404) throw new FduError("NOT_FOUND", "\u6CA1\u6709\u627E\u5230\u8BFE\u7A0B\u6216\u4F5C\u4E1A\u3002", "\u7528 `fdu elearning assignments` \u67E5\u8BE2\u6B63\u786E\u7684 id\u3002");
+    if ([400, 422].includes(res.status)) throw bad("eLearning \u62D2\u7EDD\u4E86\u63D0\u4EA4\u53C2\u6570\uFF0C\u8BF7\u5728\u4F5C\u4E1A\u7F51\u9875\u6838\u5BF9\u63D0\u4EA4\u7C7B\u578B\u3001\u6587\u4EF6\u683C\u5F0F\u548C\u5269\u4F59\u6B21\u6570\u3002");
+    if (!res.ok || !res.headers.get("content-type")?.includes("json")) throw new FduError("UPSTREAM", `eLearning \u672A\u8FD4\u56DE\u6709\u6548\u63A5\u53E3\u6570\u636E\uFF08HTTP ${res.status}\uFF09\u3002`, "\u6253\u5F00\u4F5C\u4E1A\u7F51\u9875\u67E5\u770B\u72B6\u6001\u3002");
+    return res.json();
+  }
+  async post(url, body3) {
+    if (!this.auth.csrfToken) throw new FduError("INTERNAL", "\u8BA4\u8BC1\u9002\u914D\u5668\u4E0D\u652F\u6301\u7F51\u9875\u63D0\u4EA4\u3002", "\u4F7F\u7528 fdu \u81EA\u5E26\u7684\u767B\u5F55\u4F1A\u8BDD\u3002");
+    const csrf = await this.auth.csrfToken("elearning");
+    return this.json(url, { method: "POST", redirect: "manual", headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      "X-CSRF-Token": csrf,
+      "X-Requested-With": "XMLHttpRequest",
+      Origin: this.base,
+      Referer: `${this.base}/`
+    }, body: JSON.stringify(body3) });
+  }
+  checkSubmission(s, assignmentId) {
+    if (!s || !numericId(s.id) || String(s.assignment_id) !== assignmentId || typeof s.workflow_state !== "string" || s.attempt != null && (!Number.isSafeInteger(s.attempt) || s.attempt < 0)) {
+      throw new FduError("FORMAT_CHANGED", "eLearning \u63D0\u4EA4\u8BB0\u5F55\u683C\u5F0F\u5F02\u5E38\u3002", "\u6253\u5F00\u4F5C\u4E1A\u7F51\u9875\u6838\u5BF9\u63D0\u4EA4\u8BB0\u5F55\u3002");
+    }
+  }
+  async upload(path, file) {
+    const ticket = await this.post(`${path}/submissions/self/files`, {
+      name: file.name,
+      size: file.data.byteLength,
+      on_duplicate: "rename"
+    });
+    let target;
+    try {
+      target = new URL(ticket.upload_url);
+    } catch {
+      throw new FduError("FORMAT_CHANGED", "eLearning \u8FD4\u56DE\u4E86\u5F02\u5E38\u4E0A\u4F20\u5730\u5740\u3002", "\u8BF7\u5728\u7F51\u9875\u4E0A\u4F20\u6587\u4EF6\u3002");
+    }
+    if (target.protocol !== "https:" || target.username || target.password || !ticket.upload_params || typeof ticket.upload_params !== "object" || Array.isArray(ticket.upload_params)) {
+      throw new FduError("FORMAT_CHANGED", "eLearning \u8FD4\u56DE\u4E86\u5F02\u5E38\u4E0A\u4F20\u53C2\u6570\u3002", "\u8BF7\u5728\u7F51\u9875\u4E0A\u4F20\u6587\u4EF6\u3002");
+    }
+    const form = new FormData();
+    for (const [key, value] of Object.entries(ticket.upload_params)) {
+      if (key === "file" || !["string", "number", "boolean"].includes(typeof value)) throw new FduError("FORMAT_CHANGED", "eLearning \u4E0A\u4F20\u53C2\u6570\u683C\u5F0F\u5F02\u5E38\u3002", "\u8BF7\u5728\u7F51\u9875\u4E0A\u4F20\u6587\u4EF6\u3002");
+      form.append(key, String(value));
+    }
+    form.append("file", new Blob([new Uint8Array(file.data)]), file.name);
+    const headers = {};
+    if (target.origin === this.base && this.auth.csrfToken) {
+      headers["X-CSRF-Token"] = await this.auth.csrfToken("elearning");
+      headers["X-Requested-With"] = "XMLHttpRequest";
+      headers.Origin = this.base;
+      headers.Referer = `${this.base}/`;
+    }
+    const response = await this.auth.fetch("elearning", target.href, { method: "POST", redirect: "manual", headers, body: form });
+    let uploaded;
+    const location = response.headers.get("location");
+    if (response.status >= 300 && response.status < 400 || response.status === 201 && location) {
+      const finish = new URL(location ?? "", target);
+      if (!location || finish.origin !== this.base || !finish.pathname.startsWith("/api/v1/files/") || finish.username || finish.password) {
+        throw new FduError("FORMAT_CHANGED", "eLearning \u8FD4\u56DE\u4E86\u5F02\u5E38\u4E0A\u4F20\u786E\u8BA4\u5730\u5740\u3002", "\u8BF7\u5728\u7F51\u9875\u68C0\u67E5\u6587\u4EF6\uFF1B\u5C1A\u672A\u53D1\u9001\u4F5C\u4E1A\u63D0\u4EA4\u8BF7\u6C42\u3002");
+      }
+      uploaded = await this.json(finish.href, { redirect: "manual" });
+    } else {
+      if (!response.ok || !response.headers.get("content-type")?.includes("json")) throw new FduError("UPSTREAM", "\u6587\u4EF6\u4E0A\u4F20\u5931\u8D25\uFF0C\u5C1A\u672A\u53D1\u9001\u4F5C\u4E1A\u63D0\u4EA4\u8BF7\u6C42\u3002", "\u5728\u7F51\u9875\u68C0\u67E5\u6587\u4EF6\uFF1B\u91CD\u65B0\u8FD0\u884C\u547D\u4EE4\u53EF\u80FD\u4EA7\u751F\u53E6\u4E00\u4EFD\u4E0A\u4F20\u6587\u4EF6\u3002");
+      uploaded = await response.json();
+    }
+    if (!numericId(uploaded?.id)) throw new FduError("FORMAT_CHANGED", "\u4E0A\u4F20\u7ED3\u679C\u7F3A\u5C11\u6587\u4EF6 id\uFF0C\u5C1A\u672A\u53D1\u9001\u4F5C\u4E1A\u63D0\u4EA4\u8BF7\u6C42\u3002", "\u8BF7\u5728\u7F51\u9875\u68C0\u67E5\u6587\u4EF6\u3002");
+    return String(uploaded.id);
+  }
+  async submit(courseId, assignmentId, input, now = Date.now()) {
+    if (!numericId(courseId) || !numericId(assignmentId)) throw bad("\u8BFE\u7A0B\u548C\u4F5C\u4E1A id \u5FC5\u987B\u4E3A\u6B63\u6574\u6570\u3002");
+    if ([input.file, input.text, input.url].filter((x) => x !== void 0).length !== 1) throw bad("\u5FC5\u987B\u4E14\u53EA\u80FD\u63D0\u4F9B --file\u3001--text\u3001--url \u4E2D\u7684\u4E00\u79CD\u3002");
+    const type = input.file ? "online_upload" : input.text !== void 0 ? "online_text_entry" : "online_url";
+    if (input.text !== void 0 && !input.text.trim()) throw bad("\u63D0\u4EA4\u6587\u672C\u4E0D\u80FD\u4E3A\u7A7A\u3002");
+    if (input.url !== void 0) {
+      let u;
+      try {
+        u = new URL(input.url);
+      } catch {
+        throw bad("\u7F51\u5740\u5FC5\u987B\u662F\u5B8C\u6574\u7684 HTTP / HTTPS \u5730\u5740\u3002");
+      }
+      if (!["https:", "http:"].includes(u.protocol) || u.username || u.password) throw bad("\u7F51\u5740\u5FC5\u987B\u662F HTTP / HTTPS \u5730\u5740\uFF0C\u4E0D\u80FD\u5305\u542B\u8D26\u53F7\u5BC6\u7801\u3002");
+    }
+    if (input.file && (!input.file.data.byteLength || input.file.data.byteLength > MAX_SUBMISSION_BYTES)) throw bad("\u6587\u4EF6\u4E0D\u80FD\u4E3A\u7A7A\uFF0C\u5355\u4E2A\u6587\u4EF6\u4E0D\u80FD\u8D85\u8FC7 200 MB\u3002");
+    const path = `${this.base}/api/v1/courses/${courseId}/assignments/${assignmentId}`;
+    const assignment = await this.json(path);
+    if (!assignment || String(assignment.id) !== assignmentId || String(assignment.course_id) !== courseId || !Array.isArray(assignment.submission_types)) {
+      throw new FduError("FORMAT_CHANGED", "eLearning \u4F5C\u4E1A\u4FE1\u606F\u683C\u5F0F\u5F02\u5E38\u3002", "\u8BF7\u6253\u5F00\u4F5C\u4E1A\u7F51\u9875\u6838\u5BF9\u3002");
+    }
+    if (!assignment.submission_types.includes(type)) throw bad("\u8BE5\u4F5C\u4E1A\u4E0D\u63A5\u53D7\u8FD9\u79CD\u63D0\u4EA4\u65B9\u5F0F\u3002");
+    if (assignment.published === false || assignment.locked_for_user || assignment.unlock_at && Date.parse(assignment.unlock_at) > now || assignment.lock_at && Date.parse(assignment.lock_at) <= now) throw bad("\u8BE5\u4F5C\u4E1A\u5C1A\u672A\u5F00\u653E\u6216\u5DF2\u5173\u95ED\u63D0\u4EA4\u3002");
+    if (input.file && assignment.allowed_extensions?.length) {
+      const extension = extname(input.file.name).slice(1).toLowerCase();
+      if (!assignment.allowed_extensions.some((e) => e.replace(/^\./, "").toLowerCase() === extension)) throw bad(`\u8BE5\u4F5C\u4E1A\u53EA\u63A5\u53D7\uFF1A${assignment.allowed_extensions.join("\u3001")}\u3002`);
+    }
+    const before = await this.json(`${path}/submissions/self`);
+    this.checkSubmission(before, assignmentId);
+    const previousAttempt = before.attempt ?? 0;
+    if (before.excused) throw bad("\u8BE5\u4F5C\u4E1A\u5DF2\u514D\u4EA4\uFF0C\u8BF7\u5728\u7F51\u9875\u6838\u5BF9\u662F\u5426\u9700\u8981\u63D0\u4EA4\u3002");
+    if (assignment.allowed_attempts !== void 0 && assignment.allowed_attempts >= 0 && previousAttempt >= assignment.allowed_attempts) throw bad("\u8BE5\u4F5C\u4E1A\u5DF2\u7528\u5B8C\u5141\u8BB8\u7684\u63D0\u4EA4\u6B21\u6570\u3002");
+    const alreadySubmitted = done(before) || !!before.submitted_at || previousAttempt > 0;
+    if (alreadySubmitted && !input.resubmit && !input.dryRun) throw bad("\u5DF2\u6709\u63D0\u4EA4\u8BB0\u5F55\uFF1B\u786E\u8BA4\u8981\u91CD\u65B0\u63D0\u4EA4\u65F6\u52A0 --resubmit\uFF08\u4F1A\u5360\u7528\u4E00\u6B21\u63D0\u4EA4\u673A\u4F1A\uFF09\u3002");
+    const plan = {
+      courseId,
+      assignmentId,
+      assignment: assignment.name,
+      htmlUrl: assignment.html_url,
+      submissionType: type,
+      previousAttempt,
+      alreadySubmitted,
+      groupAssignment: !!assignment.group_category_id,
+      dueAt: assignment.due_at ?? null,
+      late: !!assignment.due_at && Date.parse(assignment.due_at) < now,
+      ...input.file ? { file: { name: input.file.name, bytes: input.file.data.byteLength } } : input.text !== void 0 ? { text: input.text } : { url: input.url }
+    };
+    if (input.dryRun) return { dryRun: true, ...plan };
+    const fileId = input.file ? await this.upload(path, input.file) : void 0;
+    const submission = { submission_type: type, ...fileId ? { file_ids: [fileId] } : input.text !== void 0 ? { body: input.text } : { url: input.url } };
+    let accepted;
+    let postError;
+    try {
+      accepted = await this.post(`${path}/submissions`, { submission });
+      this.checkSubmission(accepted, assignmentId);
+    } catch (e) {
+      if (e instanceof FduError && ["BAD_ARGS", "PERMISSION", "NOT_FOUND"].includes(e.code)) throw e;
+      postError = e;
+    }
+    try {
+      const after = await this.json(`${path}/submissions/self`);
+      this.checkSubmission(after, assignmentId);
+      const matches = fileId ? after.attachments?.length === 1 && String(after.attachments[0].id) === fileId : input.text !== void 0 ? after.body === input.text : after.url === input.url;
+      const receiptMatches = accepted && String(after.id) === String(accepted.id) && after.attempt === accepted.attempt && !postError;
+      if (done(after) && after.submitted_at && (after.attempt ?? 0) > previousAttempt && after.submission_type === type && (fileId ? matches : receiptMatches || matches)) {
+        return { dryRun: false, ...plan, verified: true, submission: { id: String(after.id), attempt: after.attempt, state: after.workflow_state, submittedAt: after.submitted_at, ...fileId ? { fileId } : {} } };
+      }
+    } catch {
+    }
+    throw new FduError("SUBMISSION_UNKNOWN", "\u5DF2\u5C1D\u8BD5\u53D1\u9001\u4F5C\u4E1A\u63D0\u4EA4\uFF0C\u4F46\u65E0\u6CD5\u786E\u8BA4\u7ED3\u679C\uFF1B\u6CA1\u6709\u81EA\u52A8\u91CD\u8BD5\u3002", `\u8BF7\u6253\u5F00 ${assignment.html_url || `${this.base}/courses/${courseId}/assignments/${assignmentId}`} \u67E5\u770B\u6700\u65B0\u63D0\u4EA4\u3001\u9644\u4EF6\u548C\u6B21\u6570\uFF0C\u786E\u8BA4\u540E\u518D\u51B3\u5B9A\u662F\u5426\u91CD\u4EA4\u3002`);
   }
 };
 
@@ -3595,6 +3774,25 @@ var int2 = (description, min = 1, max = 1e3) => z.preprocess(
 var DAY3 = 864e5;
 var shanghaiDate = (iso) => iso ? new Date(iso).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false }) : void 0;
 var elearning = (ctx) => new CanvasClient(sessionAuth(ctx.session));
+function readSubmissionFile(ctx, file) {
+  let fd;
+  try {
+    const path = realpathSync(resolve(ctx.cwd, file));
+    const rel = relative(realpathSync(ctx.cwd), path);
+    if (ctx.mcp && (rel === ".." || rel.startsWith("../") || rel.startsWith("..\\") || isAbsolute(rel))) {
+      throw new FduError("BAD_ARGS", "MCP \u53EA\u80FD\u4E0A\u4F20\u5F53\u524D\u76EE\u5F55\u5185\u7684\u6587\u4EF6\uFF08\u5305\u62EC\u7B26\u53F7\u94FE\u63A5\u6307\u5411\u7684\u6587\u4EF6\uFF09\u3002", "\u628A\u5F85\u63D0\u4EA4\u6587\u4EF6\u653E\u5230\u5F53\u524D\u5DE5\u4F5C\u76EE\u5F55\u5185\u3002");
+    }
+    fd = openSync(path, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK);
+    const stat = fstatSync(fd);
+    if (!stat.isFile() || stat.size === 0 || stat.size > MAX_SUBMISSION_BYTES) throw new FduError("BAD_ARGS", "\u8BF7\u9009\u62E9\u975E\u7A7A\u666E\u901A\u6587\u4EF6\uFF0C\u5927\u5C0F\u4E0D\u80FD\u8D85\u8FC7 200 MB\u3002", "\u68C0\u67E5 --file \u6307\u5B9A\u7684\u8DEF\u5F84\u548C\u6587\u4EF6\u5927\u5C0F\u3002");
+    return { name: basename(path), data: new Uint8Array(readFileSync2(fd)) };
+  } catch (e) {
+    if (e instanceof FduError) throw e;
+    throw new FduError("BAD_ARGS", "\u65E0\u6CD5\u8BFB\u53D6\u5F85\u63D0\u4EA4\u7684\u6587\u4EF6\u3002", "\u68C0\u67E5 --file \u8DEF\u5F84\u662F\u5426\u5B58\u5728\uFF0C\u4EE5\u53CA\u5F53\u524D\u7528\u6237\u662F\u5426\u6709\u8BFB\u53D6\u6743\u9650\u3002");
+  } finally {
+    if (fd !== void 0) closeSync(fd);
+  }
+}
 async function resolveCourses(ctx, query) {
   const courses = await elearning(ctx).listCourses();
   if (!query) return courses;
@@ -3626,7 +3824,7 @@ function safeTarget(dir, name) {
   const last = name.split(/[\\/]/).pop() ?? "";
   let clean3 = last.replace(/[:*?"<>|\u0000-\u001f]/g, "_").replace(/^\.+/, "_").replace(/[. ]+$/, "").slice(0, 180) || "download";
   if (/^(con|prn|aux|nul|com\d|lpt\d)(\.|$)/i.test(clean3)) clean3 = `_${clean3}`;
-  const ext = extname(clean3);
+  const ext = extname2(clean3);
   const stem = clean3.slice(0, clean3.length - ext.length);
   let target = join2(dir, clean3);
   for (let i = 1; existsSync2(target); i++) target = join2(dir, `${stem} (${i})${ext}`);
@@ -3661,8 +3859,8 @@ function icourse(ctx) {
   return new IcourseClient({
     fetch: (url, init) => viaWebvpnAware(ctx, url, { timeoutMs: init?.timeoutMs }),
     ensureWebvpn: () => ensureWebvpn(ctx.session),
-    openInBrowser: async (url, done) => {
-      await ctx.session.withPage(url, (page) => done(page.url()), { headless: true, timeoutMs: 3e4, platform: "icourse" });
+    openInBrowser: async (url, done2) => {
+      await ctx.session.withPage(url, (page) => done2(page.url()), { headless: true, timeoutMs: 3e4, platform: "icourse" });
     }
   });
 }
@@ -3812,8 +4010,8 @@ async function roomsDayPage(ctx, building, day) {
 }
 function buildingList(value, max = 6) {
   const list2 = value.split(/[,，\s]+/).map((b) => b.trim().toUpperCase()).filter(Boolean);
-  const bad = list2.filter((b) => !BUILDINGS.includes(b));
-  if (bad.length) throw new FduError("BAD_ARGS", `\u4E0D\u8BA4\u8BC6\u7684\u6559\u5B66\u697C\uFF1A${bad.join("\u3001")}\u3002`, `\u53EF\u9009\uFF1A${BUILDINGS.join("\u3001")}\uFF08H2 = \u4E8C\u6559\uFF0CHGX = \u5149\u534E\u697C\uFF09\u3002`);
+  const bad2 = list2.filter((b) => !BUILDINGS.includes(b));
+  if (bad2.length) throw new FduError("BAD_ARGS", `\u4E0D\u8BA4\u8BC6\u7684\u6559\u5B66\u697C\uFF1A${bad2.join("\u3001")}\u3002`, `\u53EF\u9009\uFF1A${BUILDINGS.join("\u3001")}\uFF08H2 = \u4E8C\u6559\uFF0CHGX = \u5149\u534E\u697C\uFF09\u3002`);
   if (list2.length > max) throw new FduError("BAD_ARGS", `\u4E00\u6B21\u6700\u591A\u67E5 ${max} \u680B\u697C\u3002`);
   return list2;
 }
@@ -4185,6 +4383,42 @@ var OPS = [
     }
   }),
   // ======================= eLearning =======================
+  op({
+    name: "elearning.submit",
+    summary: "\u63D0\u4EA4\u4F5C\u4E1A\uFF08\u6587\u4EF6\u3001HTML \u6587\u672C\u6216\u7F51\u5740\uFF0C\u4E09\u9009\u4E00\uFF09\uFF1A\u590D\u7528 fdu \u767B\u5F55\uFF1B--dry-run \u4EC5\u9884\u89C8\uFF0C\u5DF2\u6709\u63D0\u4EA4\u9700 --resubmit\uFF1B\u53D1\u9001\u540E\u6838\u9A8C\uFF0C\u4E0D\u81EA\u52A8\u91CD\u8BD5\u3002",
+    login: "uis",
+    effect: "remote-write",
+    sensitive: true,
+    cache: false,
+    params: {
+      course: z.string().min(1).describe("\u8BFE\u7A0B id \u6216\u552F\u4E00\u540D\u79F0\u5173\u952E\u8BCD"),
+      assignment: z.string().regex(/^[1-9]\d*$/).describe("\u4F5C\u4E1A id\uFF0C\u6765\u81EA elearning assignments"),
+      file: z.string().min(1).optional().describe("\u672C\u5730\u6587\u4EF6\u8DEF\u5F84\uFF08\u5355\u4E2A\u6700\u5927 200 MB\uFF09\uFF1BMCP \u53EA\u5141\u8BB8\u5DE5\u4F5C\u76EE\u5F55\u5185\u7684\u6587\u4EF6"),
+      text: z.string().min(1).optional().describe("\u63D0\u4EA4\u6587\u672C\uFF08Canvas \u6309 HTML \u5904\u7406\uFF09\uFF0C\u4E0E file / url \u4E09\u9009\u4E00"),
+      url: z.string().min(1).optional().describe("\u63D0\u4EA4\u7684 HTTP / HTTPS \u7F51\u5740\uFF0C\u4E0E file / text \u4E09\u9009\u4E00"),
+      dryRun: flag("\u4EC5\u68C0\u67E5\u4F5C\u4E1A\u548C\u6587\u4EF6\u5E76\u9884\u89C8\uFF0C\u4E0D\u4E0A\u4F20\u3001\u4E0D\u63D0\u4EA4"),
+      resubmit: flag("\u660E\u786E\u5141\u8BB8\u91CD\u65B0\u63D0\u4EA4\u5DF2\u6709\u63D0\u4EA4\u7684\u4F5C\u4E1A\uFF08\u5360\u7528\u63D0\u4EA4\u6B21\u6570\uFF09")
+    },
+    examples: ["fdu elearning submit --course \u6570\u636E\u7ED3\u6784 --assignment 123 --file ./\u4F5C\u4E1A.pdf --dry-run", "fdu elearning submit --course \u6570\u636E\u7ED3\u6784 --assignment 123 --file ./\u4F5C\u4E1A.pdf"],
+    async run(ctx, a) {
+      if ([a.file, a.text, a.url].filter((v) => v !== void 0).length !== 1) throw new FduError("BAD_ARGS", "--file\u3001--text\u3001--url \u5FC5\u987B\u4E14\u53EA\u80FD\u9009\u4E00\u4E2A\u3002", "\u7528 `fdu describe elearning.submit` \u67E5\u770B\u53C2\u6570\u3002");
+      const file = a.file ? readSubmissionFile(ctx, a.file) : void 0;
+      const matches = await resolveCourses(ctx, a.course);
+      const exact = matches.find((c) => c.id === a.course);
+      if (!exact && matches.length !== 1) throw new FduError("BAD_ARGS", "\u8BFE\u7A0B\u5173\u952E\u8BCD\u5339\u914D\u4E86\u591A\u95E8\u8BFE\u3002", "\u7528 `fdu elearning courses` \u67E5\u8BE2\u5E76\u4F20\u5165\u51C6\u786E\u8BFE\u7A0B id\u3002");
+      const course = exact ?? matches[0];
+      try {
+        return { course: course.name, ...await new CanvasSubmitClient(sessionAuth(ctx.session)).submit(course.id, a.assignment, { file, text: a.text, url: a.url, dryRun: a.dryRun, resubmit: a.resubmit }, ctx.now()) };
+      } finally {
+        if (!a.dryRun) {
+          try {
+            ctx.cache?.clear(["elearning.assignments", "elearning.todo", "overview.today", "overview.week"]);
+          } catch {
+          }
+        }
+      }
+    }
+  }),
   op({
     name: "elearning.courses",
     summary: "\u672C\u5B66\u671F\u7684 eLearning \u8BFE\u7A0B\uFF08id\u3001\u540D\u79F0\u3001\u8BFE\u7A0B\u4EE3\u7801\u3001\u6559\u5E08\uFF09\u3002",
@@ -5046,7 +5280,7 @@ async function runOp(op2, ctx, input, opts = {}) {
     try {
       data = await op2.run(ctx, args);
     } catch (e) {
-      if (op2.effect === "auth" || !ctx.relogin) throw e;
+      if (op2.effect === "auth" || op2.effect === "remote-write" || !ctx.relogin) throw e;
       const relogged = await ctx.relogin(e);
       if (relogged === "pending") throw new FduError("NEED_LOGIN", "\u5DF2\u5728\u7528\u6237\u7535\u8111\u4E0A\u6253\u5F00\u767B\u5F55\u7A97\u53E3\uFF0C\u6B63\u5728\u7B49\u7528\u6237\u5B8C\u6210\u767B\u5F55\u6216\u9A8C\u8BC1\u3002", "\u8BF7\u7528\u6237\u5728\u5F39\u51FA\u7684\u7A97\u53E3\u91CC\u5B8C\u6210\uFF08\u7A97\u53E3\u4F1A\u4FDD\u6301\u6253\u5F00\uFF09\uFF0C\u5B8C\u6210\u540E\u518D\u67E5\u8BE2\u4E00\u6B21\u5373\u53EF\u3002");
       if (!relogged) throw e;
@@ -5117,7 +5351,8 @@ function toolDescription(op2) {
     op2.summary,
     LOGIN_NOTE[op2.login],
     op2.sensitive ? "\u8FD4\u56DE\u7684\u662F\u9690\u79C1\u6570\u636E\uFF08\u6210\u7EE9 / \u90AE\u4EF6\u7B49\uFF09\uFF1A\u53EA\u7528\u6765\u56DE\u7B54\u7528\u6237\u672C\u4EBA\u7684\u95EE\u9898\uFF0C\u4E0D\u8981\u5199\u8FDB\u4EE3\u7801\u4ED3\u5E93\u3001\u63D0\u4EA4\u4FE1\u606F\u6216\u53D1\u7ED9\u522B\u4EBA\u3002" : "",
-    op2.effect === "local-write" ? "\u4F1A\u5728\u672C\u673A\u5199\u6587\u4EF6\uFF08\u4E0D\u8986\u76D6\u5DF2\u6709\u6587\u4EF6\uFF09\u3002" : ""
+    op2.effect === "local-write" ? "\u4F1A\u5728\u672C\u673A\u5199\u6587\u4EF6\uFF08\u4E0D\u8986\u76D6\u5DF2\u6709\u6587\u4EF6\uFF09\u3002" : "",
+    op2.effect === "remote-write" ? "\u4F1A\u5411\u5B66\u6821\u7CFB\u7EDF\u63D0\u4EA4\u4F5C\u4E1A\u5E76\u5360\u7528\u63D0\u4EA4\u6B21\u6570\u3002\u4EC5\u5728\u7528\u6237\u660E\u786E\u8981\u6C42\u63D0\u4EA4\u6307\u5B9A\u4F5C\u4E1A\u548C\u5185\u5BB9\u65F6\u6267\u884C\uFF1B\u5148\u7528 dryRun \u9884\u89C8\u3002\u7ED3\u679C\u4E0D\u786E\u5B9A\u65F6\u5148\u6838\u9A8C\u7F51\u9875\uFF0C\u4E0D\u80FD\u81EA\u52A8\u91CD\u8BD5\u3002" : ""
   ].filter(Boolean).join("\n");
 }
 function buildServer(session, store) {
@@ -5133,7 +5368,7 @@ function buildServer(session, store) {
     server.registerTool(op2.name.replace(".", "_"), {
       description: toolDescription(op2),
       inputSchema: mcpShape(op2),
-      annotations: { readOnlyHint: op2.effect === "read", destructiveHint: false, openWorldHint: true }
+      annotations: { readOnlyHint: op2.effect === "read", destructiveHint: op2.effect === "remote-write", ...op2.effect === "remote-write" ? { idempotentHint: false } : {}, openWorldHint: true }
     }, async (args) => {
       const ctx = { store, session, log: (m) => process.stderr.write(`${m}
 `), cwd: process.cwd(), now: () => Date.now(), cache: new Cache(store), relogin: (e) => autoLogin(ctx, e), waitMs: MCP_LOGIN_WAIT_MS, mcp: true };
@@ -5169,7 +5404,7 @@ async function serveMcp(opts = {}) {
 var GROUPS = [
   { id: "overview", name: "\u6C47\u603B", desc: "\u4ECA\u5929 / \u8FD9\u5468\u7684\u8BFE\u3001\u8981\u4EA4\u7684\u4F5C\u4E1A\u3001\u8003\u8BD5\uFF08\u7B80\u5199 fdu today\u3001fdu week\uFF09" },
   { id: "auth", name: "\u8D26\u53F7\u4E0E\u73AF\u5883", desc: "\u767B\u5F55\u590D\u65E6\u7EDF\u4E00\u8EAB\u4EFD\u8BA4\u8BC1\u3001\u67E5\u770B\u767B\u5F55\u72B6\u6001\u3001\u68C0\u67E5\u73AF\u5883\uFF08\u7B80\u5199 fdu login\u3001fdu status\u3001fdu doctor\uFF09" },
-  { id: "elearning", name: "eLearning", desc: "\u8BFE\u7A0B\u3001\u4F5C\u4E1A\u548C\u622A\u6B62\u65F6\u95F4\u3001\u516C\u544A\u3001\u8BFE\u4EF6\u4E0B\u8F7D\uFF08\u7B80\u5199 fdu todo\uFF09" },
+  { id: "elearning", name: "eLearning", desc: "\u8BFE\u7A0B\u3001\u4F5C\u4E1A\u67E5\u8BE2\u4E0E\u63D0\u4EA4\u3001\u622A\u6B62\u65F6\u95F4\u3001\u516C\u544A\u3001\u8BFE\u4EF6\u4E0B\u8F7D\uFF08\u7B80\u5199 fdu todo\uFF09" },
   { id: "jw", name: "\u6559\u52A1\u7CFB\u7EDF", desc: "\u8BFE\u8868\u3001\u8003\u8BD5\u3001\u6210\u7EE9\u7EE9\u70B9\u3001\u57F9\u517B\u65B9\u6848\u3001\u9009\u8BFE\u7ED3\u679C\u3001\u5168\u6821\u5F00\u8BFE\u67E5\u8BE2\u3001\u6559\u5B66\u5927\u7EB2\u3001\u6559\u5B66\u5468" },
   { id: "icourse", name: "iCourse \u8BFE\u7A0B\u56DE\u653E", desc: "\u627E\u8BFE\u7A0B\u3001\u8BB2\u6B21\u5217\u8868\u3001\u8BFE\u5802\u6587\u5B57\u7A3F" },
   { id: "rooms", name: "\u6559\u5BA4", desc: "\u5404\u6559\u5B66\u697C\u6BCF\u95F4\u6559\u5BA4\u7684\u5B89\u6392\u3001\u7A7A\u95F2\u65F6\u6BB5\u3001\u73B0\u5728\u7684\u72B6\u6001\uFF08\u7ECF WebVPN\uFF09" },
@@ -5263,6 +5498,7 @@ function helpOp(op2) {
   const d = describeOp(op2);
   const lines = [command(op2), "", op2.summary, "", `\u767B\u5F55\uFF1A${LOGIN[op2.login]}`];
   if (op2.sensitive) lines.push("\u9690\u79C1\uFF1A\u8FD4\u56DE\u6210\u7EE9 / \u6D88\u8D39 / \u501F\u9605 / \u90AE\u4EF6\u7B49\u9690\u79C1\u6570\u636E\uFF0C\u53EA\u7528\u6765\u56DE\u7B54\u4F60\u672C\u4EBA\u7684\u95EE\u9898");
+  if (op2.effect === "remote-write") lines.push("\u4F1A\u4E0A\u4F20\u5185\u5BB9\u5E76\u63D0\u4EA4\u5230\u5B66\u6821\u7CFB\u7EDF\uFF0C\u5360\u7528\u63D0\u4EA4\u6B21\u6570\uFF1B\u5148\u7528 --dry-run \u9884\u89C8\uFF0C\u7ED3\u679C\u4E0D\u786E\u5B9A\u65F6\u5148\u6838\u9A8C\u7F51\u9875\uFF0C\u4E0D\u80FD\u81EA\u52A8\u91CD\u8BD5");
   if (op2.effect === "local-write") lines.push("\u4F1A\u5728\u672C\u673A\u5199\u6587\u4EF6\uFF08\u4E0D\u8986\u76D6\u5DF2\u6709\u6587\u4EF6\uFF09");
   lines.push(op2.mcp === false ? "MCP\uFF1A\u4E0D\u63D0\u4F9B\uFF08\u9700\u8981\u5728\u7EC8\u7AEF\u91CC\u64CD\u4F5C\uFF09" : `MCP \u5DE5\u5177\uFF1A${d.mcpTool}`);
   if (d.params.length) {

@@ -15,6 +15,8 @@ export type PlatformStatus = 'ok' | 'need_login' | 'unavailable';
 export interface FudanAuth {
   /** 用共享的 UIS 会话发请求。会话失效时抛出 NeedLoginError。 */
   fetch(platform: FudanPlatform, url: string, init?: RequestInit): Promise<Response>;
+  /** 网页写请求用的 CSRF 校验值（不是 API access token）。 */
+  csrfToken?(platform: FudanPlatform): Promise<string>;
   /** 查询某个平台当前的连接状态。 */
   status(platform: FudanPlatform): Promise<PlatformStatus>;
   /** 请求用户重新登录（桌面端会弹出登录窗口）。 */

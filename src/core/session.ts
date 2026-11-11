@@ -1,13 +1,17 @@
 import { chromium, request, type APIRequestContext, type Browser, type BrowserContext, type Page } from 'playwright-core';
 import { FduError } from './errors';
-import { isUisLoginUrl, NeedLoginError, type FudanPlatform } from './fudan-auth';
+import { isUisLoginUrl, NeedLoginError, PLATFORM_URLS, type FudanPlatform } from './fudan-auth';
 import type { CampusReader } from './types';
 import type { Store } from './store';
 
 export type StorageState = Awaited<ReturnType<APIRequestContext['storageState']>>;
 export interface RawResponse { status: number; url: string; contentType: string; text: string }
 /** retries：GET / HEAD 遇到网络错误或 429 / 5xx 时重试几次（默认 2；POST 等不重试） */
-export interface FetchInit { method?: string; headers?: Record<string, string>; body?: string; timeoutMs?: number; retries?: number }
+export interface FetchInit {
+  method?: string; headers?: Record<string, string>; body?: string; timeoutMs?: number; retries?: number;
+  multipart?: Record<string, string | { name: string; mimeType: string; buffer: Buffer }>;
+  maxRedirects?: number;
+}
 
 const STATE = 'state.json';
 const LOGIN_LOG = 'login.json';
@@ -114,6 +118,22 @@ export class Session {
     return this.ctx;
   }
 
+  /** 网页会话的 CSRF 值；不需要用户生成 Canvas API token。只从目标站点的有效 Cookie 读取。 */
+  async csrfToken(platform: FudanPlatform): Promise<string> {
+    const host = new URL(PLATFORM_URLS[platform].base).hostname;
+    const read = async () => (await this.state())?.cookies.find((c) =>
+      c.name === '_csrf_token' && (c.domain === host || (c.domain.startsWith('.') && (host === c.domain.slice(1) || host.endsWith(c.domain))))
+      && c.path === '/' && (c.expires <= 0 || c.expires > Date.now() / 1000))?.value;
+    let value = await read();
+    if (!value) {
+      await this.fetch(platform, `${PLATFORM_URLS[platform].base}/`);
+      value = await read();
+    }
+    if (!value) throw new FduError('NEED_LOGIN', 'eLearning 会话缺少 CSRF 校验信息。', '运行 `fdu login` 后重试；仍失败请在网页打开一次作业页面。');
+    try { return decodeURIComponent(value); }
+    catch { throw new FduError('FORMAT_CHANGED', 'eLearning CSRF Cookie 格式异常。', '重新运行 `fdu login`。'); }
+  }
+
   /** 原样请求，不判断是否登录（公开接口、树洞等用） */
   async raw(url: string, init: FetchInit = {}): Promise<RawResponse & { body: Buffer; headers: Record<string, string> }> {
     const ctx = await this.api();
@@ -124,7 +144,7 @@ export class Session {
     let res;
     for (let attempt = 0; ; attempt++) {
       try {
-        res = await ctx.fetch(url, { method, headers: init.headers, data: init.body, maxRedirects: 20, timeout: init.timeoutMs ?? 20_000, failOnStatusCode: false });
+        res = await ctx.fetch(url, { method, headers: init.headers, data: init.body, multipart: init.multipart, maxRedirects: init.maxRedirects ?? 20, timeout: init.timeoutMs ?? 20_000, failOnStatusCode: false });
       } catch (e) {
         const kind = transientError(e);
         if (kind === 'timeout') retries = Math.min(retries, 1);

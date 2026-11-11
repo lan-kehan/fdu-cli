@@ -44,8 +44,8 @@ export async function runOp(op: Op, ctx: Ctx, input: Record<string, unknown>, op
     try {
       data = await op.run(ctx, args);
     } catch (e) {
-      // 需要登录：自动弹出浏览器登录（或完成二次验证），成功后重试一次
-      if (op.effect === 'auth' || !ctx.relogin) throw e;
+      // 查询需要登录时允许重跑；远端写入可能已经生效，禁止重跑整个操作。
+      if (op.effect === 'auth' || op.effect === 'remote-write' || !ctx.relogin) throw e;
       const relogged = await ctx.relogin(e);
       if (relogged === 'pending') throw new FduError('NEED_LOGIN', '已在用户电脑上打开登录窗口，正在等用户完成登录或验证。', '请用户在弹出的窗口里完成（窗口会保持打开），完成后再查询一次即可。');
       if (!relogged) throw e;

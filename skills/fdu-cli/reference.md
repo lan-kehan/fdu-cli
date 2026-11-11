@@ -119,7 +119,28 @@ fdu doctor
 
 ## eLearning
 
-课程、作业和截止时间、公告、课件下载（简写 fdu todo）
+课程、作业查询与提交、截止时间、公告、课件下载（简写 fdu todo）
+
+### `fdu elearning submit`
+
+提交作业（文件、HTML 文本或网址，三选一）：复用 fdu 登录；--dry-run 仅预览，已有提交需 --resubmit；发送后核验，不自动重试。
+
+登录：复旦账号 · **会提交到学校系统（不自动重试）** · **隐私数据** · MCP：`elearning_submit`
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `--course` | string | 是 | 课程 id 或唯一名称关键词 |
+| `--assignment` | string | 是 | 作业 id，来自 elearning assignments |
+| `--file` | string |  | 本地文件路径（单个最大 200 MB）；MCP 只允许工作目录内的文件 |
+| `--text` | string |  | 提交文本（Canvas 按 HTML 处理），与 file / url 三选一 |
+| `--url` | string |  | 提交的 HTTP / HTTPS 网址，与 file / text 三选一 |
+| `--dry-run` | boolean |  | 仅检查作业和文件并预览，不上传、不提交 |
+| `--resubmit` | boolean |  | 明确允许重新提交已有提交的作业（占用提交次数） |
+
+```bash
+fdu elearning submit --course 数据结构 --assignment 123 --file ./作业.pdf --dry-run
+fdu elearning submit --course 数据结构 --assignment 123 --file ./作业.pdf
+```
 
 ### `fdu elearning courses`
 

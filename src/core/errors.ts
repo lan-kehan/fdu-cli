@@ -12,6 +12,7 @@ export type ErrorCode =
   | 'PERMISSION' // 登录有效，但学校系统不让看这部分
   | 'FORMAT_CHANGED' // 学校页面改版，解析不了
   | 'UPSTREAM' // 学校系统出错、超时、断网
+  | 'SUBMISSION_UNKNOWN' // 已发出提交，无法确认结果；不要自动重试
   | 'INTERNAL';
 
 /** 需要登录时，自动登录要运行的登录命令（如教室系统、图书馆这些单独登录的系统） */

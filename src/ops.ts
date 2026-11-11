@@ -1,4 +1,4 @@
-import { accessSync, constants as fsConstants, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { accessSync, closeSync, constants as fsConstants, existsSync, fstatSync, mkdirSync, openSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs';
 import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 'node:path';
 import { z } from 'zod';
 import { ensureWebvpn, login, loginAt, platformStatus, sessionAuth, webvpnAlive } from './core/auth';
@@ -13,6 +13,7 @@ import { filterBus, readBus } from './services/bus';
 import { readCanteen } from './services/canteen';
 import { ago, cookieExpiry, packSession, TRANSFER_FILES, unpackSession } from './services/session-transfer';
 import { CanvasClient, isAssignmentDone, type CanvasCourse } from './services/elearning';
+import { CanvasSubmitClient, MAX_SUBMISSION_BYTES } from './services/elearning-submit';
 import { readGpaRank, readGrades, readStudentId } from './services/grades';
 import { readExams, readLessons, readSemesters, readSyllabus, readTimetable } from './services/jw';
 import { LibrarySearch } from './services/library-search';
@@ -59,7 +60,7 @@ export interface Ctx {
   mcp?: boolean;
 }
 
-export type Effect = 'read' | 'local-write' | 'auth';
+export type Effect = 'read' | 'local-write' | 'remote-write' | 'auth';
 
 export interface Op {
   /** 形如 jw.grades；命令行写成 fdu jw grades */
@@ -70,7 +71,7 @@ export interface Op {
   login: 'uis' | 'hole' | 'mail' | 'none';
   /** 成绩、邮件等隐私数据：编程助理不要主动转述给别人或写进仓库 */
   sensitive?: boolean;
-  /** read 只读；local-write 只写本机文件（下载）；auth 登录 / 退出 */
+  /** read 只读；local-write 写本机文件；remote-write 写学校系统；auth 登录 / 退出 */
   effect: Effect;
   /** 需要在终端里输入密码的操作不开放给 MCP */
   mcp?: boolean;
@@ -106,6 +107,25 @@ const shanghaiDate = (iso?: string) => iso ? new Date(iso).toLocaleString('zh-CN
 
 // ---------- eLearning ----------
 const elearning = (ctx: Ctx) => new CanvasClient(sessionAuth(ctx.session));
+
+/** MCP 上传只允许当前目录内的真实文件，解析符号链接后再检查。 */
+export function readSubmissionFile(ctx: Pick<Ctx, 'cwd' | 'mcp'>, file: string) {
+  let fd: number | undefined;
+  try {
+    const path = realpathSync(resolve(ctx.cwd, file));
+    const rel = relative(realpathSync(ctx.cwd), path);
+    if (ctx.mcp && (rel === '..' || rel.startsWith('../') || rel.startsWith('..\\') || isAbsolute(rel))) {
+      throw new FduError('BAD_ARGS', 'MCP 只能上传当前目录内的文件（包括符号链接指向的文件）。', '把待提交文件放到当前工作目录内。');
+    }
+    fd = openSync(path, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK);
+    const stat = fstatSync(fd);
+    if (!stat.isFile() || stat.size === 0 || stat.size > MAX_SUBMISSION_BYTES) throw new FduError('BAD_ARGS', '请选择非空普通文件，大小不能超过 200 MB。', '检查 --file 指定的路径和文件大小。');
+    return { name: basename(path), data: new Uint8Array(readFileSync(fd)) };
+  } catch (e) {
+    if (e instanceof FduError) throw e;
+    throw new FduError('BAD_ARGS', '无法读取待提交的文件。', '检查 --file 路径是否存在，以及当前用户是否有读取权限。');
+  } finally { if (fd !== undefined) closeSync(fd); }
+}
 
 /** 课程：id，或课程名 / 课程代码里的关键词 */
 async function resolveCourses(ctx: Ctx, query?: string): Promise<CanvasCourse[]> {
@@ -638,6 +658,34 @@ export const OPS: Op[] = [
   }),
 
   // ======================= eLearning =======================
+  op({
+    name: 'elearning.submit', summary: '提交作业（文件、HTML 文本或网址，三选一）：复用 fdu 登录；--dry-run 仅预览，已有提交需 --resubmit；发送后核验，不自动重试。',
+    login: 'uis', effect: 'remote-write', sensitive: true, cache: false,
+    params: {
+      course: z.string().min(1).describe('课程 id 或唯一名称关键词'),
+      assignment: z.string().regex(/^[1-9]\d*$/).describe('作业 id，来自 elearning assignments'),
+      file: z.string().min(1).optional().describe('本地文件路径（单个最大 200 MB）；MCP 只允许工作目录内的文件'),
+      text: z.string().min(1).optional().describe('提交文本（Canvas 按 HTML 处理），与 file / url 三选一'),
+      url: z.string().min(1).optional().describe('提交的 HTTP / HTTPS 网址，与 file / text 三选一'),
+      dryRun: flag('仅检查作业和文件并预览，不上传、不提交'),
+      resubmit: flag('明确允许重新提交已有提交的作业（占用提交次数）'),
+    },
+    examples: ['fdu elearning submit --course 数据结构 --assignment 123 --file ./作业.pdf --dry-run', 'fdu elearning submit --course 数据结构 --assignment 123 --file ./作业.pdf'],
+    async run(ctx, a) {
+      if ([a.file, a.text, a.url].filter((v) => v !== undefined).length !== 1) throw new FduError('BAD_ARGS', '--file、--text、--url 必须且只能选一个。', '用 `fdu describe elearning.submit` 查看参数。');
+      const file = a.file ? readSubmissionFile(ctx, a.file) : undefined;
+      const matches = await resolveCourses(ctx, a.course);
+      const exact = matches.find((c) => c.id === a.course);
+      if (!exact && matches.length !== 1) throw new FduError('BAD_ARGS', '课程关键词匹配了多门课。', '用 `fdu elearning courses` 查询并传入准确课程 id。');
+      const course = exact ?? matches[0];
+      try {
+        return { course: course.name, ...await new CanvasSubmitClient(sessionAuth(ctx.session)).submit(course.id, a.assignment, { file, text: a.text, url: a.url, dryRun: a.dryRun, resubmit: a.resubmit }, ctx.now()) };
+      } finally {
+        // 请求结果不确定时也可能已提交成功，不能留下旧的待办状态。
+        if (!a.dryRun) { try { ctx.cache?.clear(['elearning.assignments', 'elearning.todo', 'overview.today', 'overview.week']); } catch { /* 缓存清理失败不覆盖提交结果 */ } }
+      }
+    },
+  }),
   op({
     name: 'elearning.courses', summary: '本学期的 eLearning 课程（id、名称、课程代码、教师）。', login: 'uis', effect: 'read', params: {},
     async run(ctx) { return elearning(ctx).listCourses(); },
