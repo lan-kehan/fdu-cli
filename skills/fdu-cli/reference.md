@@ -150,18 +150,20 @@ fdu elearning submit --course 数据结构 --assignment 123 --file ./作业.pdf
 
 ### `fdu elearning assignments`
 
-作业列表：截止时间（含上海时间）、是否已提交。不传课程时列出全部课程。
+作业列表：截止时间、是否已提交；加 --assignment 查询单份作业的本人提交、附件、分数、评语和历史（不标已读）。不传课程时列出全部课程。
 
-登录：复旦账号 · 只读 · MCP：`elearning_assignments`
+登录：复旦账号 · 只读 · **隐私数据** · MCP：`elearning_assignments`
 
 | 参数 | 类型 | 必填 | 说明 |
 |---|---|---|---|
-| `--course` | string |  | 课程 id 或名称关键词 |
-| `--pending` | boolean |  | 只看还没交的 |
+| `--course` | string |  | 课程 id 或名称关键词；查询单份作业时必须唯一 |
+| `--assignment` | string |  | 作业 id：查询该作业详情及本人的提交和反馈，必须同时传 course，不能与 pending 同用；仍返回数组 |
+| `--pending` | boolean |  | 只看还没交的，不能与 assignment 同用 |
 
 ```bash
 fdu elearning assignments --course 数据结构
 fdu elearning assignments --pending
+fdu elearning assignments --course 数据结构 --assignment 123
 ```
 
 ### `fdu elearning todo`

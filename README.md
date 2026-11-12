@@ -87,6 +87,23 @@ args = ["mcp"]
 
 每个命令的参数和示例：`fdu help <服务>`、`fdu help <服务> <命令>`，或者看 [命令参考](skills/fdu-cli/reference.md)。
 
+### 查询作业提交记录和反馈
+
+```sh
+fdu elearning assignments --course 数据结构
+fdu elearning assignments --course 数据结构 --assignment 123
+```
+
+加 `--assignment <作业id>` 时必须同时指定唯一的 `--course`，不能与 `--pending` 同用。返回仍是数组（单个元素），保留原来的作业字段、`done` 和 `dueAtShanghai`，并增加：
+
+- 作业要求：`pointsPossible`、`allowedAttempts`（`-1` 表示不限次数）、`allowedExtensions`、`lockedForUser`、`unlockAt`、`lockAt`、`groupAssignment`。
+- `submission`：本人当前提交的状态、次数、时间、HTML 文本或网址、附件，以及分数、等级、评分时间、是否免交/迟交/缺交。
+- `submission.comments` 和 `submission.history`：接口允许查看的评语、评语附件和历史提交。`null` 表示接口没有返回；空数组表示返回了列表但没有条目。历史按平台返回的顺序保留。
+
+`gradeMatchesCurrentSubmission: false` 表示分数对应的是之前的提交，不能当作本次重交的评分；未返回的分数用 `null`，真实零分保留为 `0`。文本和评语按平台原文返回，不自动总结或推断。
+
+此查询只读取本人提交，不提交内容、不下载附件，也不请求会把反馈标为已读的 `read_status`。由于返回成绩和评语，`elearning.assignments` 已标为隐私数据，缓存有效期从 7 天缩短到 24 小时。未加新参数时的列表输出字段和结构保持不变。MCP 继续使用 `elearning_assignments`，增加同名 `assignment` 参数。
+
 ### 提交 eLearning 作业
 
 复用 `fdu login` 保存的 eLearning Cookie 会话，写请求自动携带 CSRF 校验信息，**不需要 Canvas API token**。登录过期时先运行 `fdu login`。命令行和 MCP（`elearning_submit`）均可用。
@@ -178,7 +195,7 @@ fdu describe jw.lessons     # 一个命令的说明（JSON，给 AI 看）
 
 ## 隐私
 
-- 成绩、绩点、培养方案、校园卡消费记录、图书馆借阅、邮件标成了隐私数据（`fdu services` 里 `sensitive: true`）。技能会提醒 AI 助理：只用来回答你本人的问题，不写进代码仓库、提交信息或别的服务。
+- 作业提交与反馈、成绩、绩点、培养方案、校园卡消费记录、图书馆借阅、邮件标成了隐私数据（`fdu services` 里 `sensitive: true`）。技能会提醒 AI 助理：只用来回答你本人的问题，不写进代码仓库、提交信息或别的服务。
 - 数据只在你的电脑和学校系统之间传输；交给哪个 AI 模型由你使用的助理决定。不想让它看到某类数据，就不要登录对应的账号，或者用 `--profile` 分开。
 
 本机保存的东西都在 `~/.config/fdu-cli/default/`（Windows：`%APPDATA%\fdu-cli\default\`；`FDU_HOME` 可改位置），目录权限 700、文件权限 600：

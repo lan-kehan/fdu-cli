@@ -25,7 +25,7 @@ description: 查询复旦大学校园服务：eLearning 课程 / 作业 / DDL / 
 
 ## 隐私
 
-- `jw.grades`、`jw.gpa`、`jw.program`、`card.transactions`、`library.loans`、`library.history`、`mail.list`、`mail.read` 返回隐私数据（消费记录能看出用户的行踪和习惯）：只用来回答用户本人的问题。**不要**写进代码仓库、提交信息、日志、issue / PR，也不要贴到别的服务里。
+- `elearning.assignments`、`jw.grades`、`jw.gpa`、`jw.program`、`card.transactions`、`library.loans`、`library.history`、`mail.list`、`mail.read` 返回隐私数据（消费记录能看出用户的行踪和习惯）：只用来回答用户本人的问题。**不要**写进代码仓库、提交信息、日志、issue / PR，也不要贴到别的服务里。
 - 不要把 `~/.config/fdu-cli/`（Windows：`%APPDATA%\fdu-cli\`）里的文件读出来、复制或提交，那是登录凭证。
 - 树洞内容是匿名同学的个人看法：引用时说明来源和洞号，综合多条再下结论，不当作事实。
 
@@ -43,6 +43,7 @@ description: 查询复旦大学校园服务：eLearning 课程 / 作业 / DDL / 
 | 这周有什么 DDL | `fdu todo --days 7`（= `fdu elearning todo`） |
 | 把课表放进日历 | `fdu calendar export --out ~/Desktop/fudan.ics`，再让用户导入日历软件 |
 | 某门课的作业 | `fdu elearning assignments --course 数据结构` |
+| 查自己交了什么、交了几次、分数和老师评语 | `fdu elearning assignments --course <唯一课程名或id> --assignment <作业id>`；仍返回单元素数组，读取 `submission`、`submission.comments` 和 `submission.history`。`gradeMatchesCurrentSubmission: false` 表示旧评分；`null` 表示接口未返回，不解释成零分或没有评语。不标已读，不下载附件 |
 | 今天 / 这周的课 | `fdu jw timetable`，按 `weekday`（1 = 周一）和教学周 `weeks` 筛选 |
 | 考试安排 | `fdu jw exams` |
 | 成绩、绩点、排名 | `fdu jw grades`、`fdu jw gpa` |

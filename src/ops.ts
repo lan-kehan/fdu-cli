@@ -691,10 +691,23 @@ export const OPS: Op[] = [
     async run(ctx) { return elearning(ctx).listCourses(); },
   }),
   op({
-    name: 'elearning.assignments', summary: '作业列表：截止时间（含上海时间）、是否已提交。不传课程时列出全部课程。', login: 'uis', effect: 'read',
-    params: { course: z.string().optional().describe('课程 id 或名称关键词'), pending: flag('只看还没交的') },
-    examples: ['fdu elearning assignments --course 数据结构', 'fdu elearning assignments --pending'],
+    name: 'elearning.assignments', summary: '作业列表：截止时间、是否已提交；加 --assignment 查询单份作业的本人提交、附件、分数、评语和历史（不标已读）。不传课程时列出全部课程。', login: 'uis', effect: 'read', sensitive: true,
+    params: {
+      course: z.string().min(1).optional().describe('课程 id 或名称关键词；查询单份作业时必须唯一'),
+      assignment: z.string().regex(/^[1-9]\d*$/).optional().describe('作业 id：查询该作业详情及本人的提交和反馈，必须同时传 course，不能与 pending 同用；仍返回数组'),
+      pending: flag('只看还没交的，不能与 assignment 同用'),
+    },
+    examples: ['fdu elearning assignments --course 数据结构', 'fdu elearning assignments --pending', 'fdu elearning assignments --course 数据结构 --assignment 123'],
     async run(ctx, a) {
+      if (a.assignment) {
+        if (!a.course || a.pending) throw new FduError('BAD_ARGS', '查询单份作业必须提供 --course，不能同时使用 --pending。', '运行 `fdu elearning assignments --course <课程> --assignment <作业id>`。');
+        const courses = await resolveCourses(ctx, a.course);
+        const exact = courses.find((c) => c.id === a.course);
+        if (!exact && courses.length !== 1) throw new FduError('BAD_ARGS', '课程关键词匹配了多门课。', '用 `fdu elearning courses` 查询准确的课程 id。');
+        const course = exact ?? courses[0];
+        const detail = await elearning(ctx).getAssignment(course.id, a.assignment);
+        return [{ ...detail, course: course.name, done: isAssignmentDone(detail), dueAtShanghai: shanghaiDate(detail.dueAt) }];
+      }
       const list = await assignmentsOf(ctx, await resolveCourses(ctx, a.course));
       return a.pending ? list.filter((x) => !x.done) : list;
     },

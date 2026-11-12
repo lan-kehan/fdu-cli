@@ -1,4 +1,64 @@
 import { NeedLoginError, PLATFORM_URLS, isPermissionDenied, isUisLoginUrl, type FudanAuth } from '../core/fudan-auth';
+import { FduError } from '../core/errors';
+import { z } from 'zod';
+
+const canvasId = z.union([z.number().int().positive().max(Number.MAX_SAFE_INTEGER), z.string().regex(/^[1-9]\d*$/)]).transform(String);
+const nullableText = z.string().nullish();
+const attachmentSchema = z.object({
+  id: canvasId, display_name: nullableText, filename: nullableText, url: nullableText,
+  size: z.number().nonnegative().nullish(), 'content-type': nullableText,
+});
+const submissionRecordSchema = z.object({
+  id: canvasId.nullish(), assignment_id: canvasId,
+  workflow_state: z.string().min(1), attempt: z.number().int().nonnegative().nullish(),
+  submission_type: nullableText, submitted_at: nullableText, body: nullableText, url: nullableText,
+  attachments: z.array(attachmentSchema).nullish(), score: z.number().nullish(), grade: nullableText,
+  graded_at: nullableText, grade_matches_current_submission: z.boolean().nullish(),
+  excused: z.boolean().nullish(), late: z.boolean().nullish(), missing: z.boolean().nullish(),
+});
+const submissionDetailSchema = submissionRecordSchema.extend({
+  submission_comments: z.array(z.object({
+    id: canvasId.nullish(), author_name: nullableText, comment: nullableText, created_at: nullableText,
+    attachments: z.array(attachmentSchema).nullish(),
+  })).nullish(),
+  submission_history: z.array(submissionRecordSchema).nullish(),
+});
+const assignmentDetailSchema = z.object({
+  id: canvasId, course_id: canvasId, name: z.string(), description: nullableText,
+  html_url: z.string(), submission_types: z.array(z.string()), due_at: nullableText, updated_at: nullableText,
+  points_possible: z.number().nonnegative().nullish(), allowed_attempts: z.number().int().min(-1).nullish(),
+  allowed_extensions: z.array(z.string()).nullish(), locked_for_user: z.boolean().nullish(),
+  unlock_at: nullableText, lock_at: nullableText, group_category_id: canvasId.nullish(),
+});
+
+type RawSubmissionRecord = z.infer<typeof submissionRecordSchema>;
+const attachmentView = (f: z.infer<typeof attachmentSchema>) => ({
+  id: f.id, name: f.display_name ?? f.filename ?? `文件 ${f.id}`, url: f.url ?? null,
+  size: f.size ?? null, contentType: f['content-type'] ?? null,
+});
+const submissionRecordView = (s: RawSubmissionRecord) => ({
+  id: s.id ?? null, state: s.workflow_state, attempt: s.attempt ?? null,
+  submissionType: s.submission_type ?? null, submittedAt: s.submitted_at ?? null,
+  body: s.body ?? null, url: s.url ?? null, attachments: (s.attachments ?? []).map(attachmentView),
+  score: s.score ?? null, grade: s.grade ?? null, gradedAt: s.graded_at ?? null,
+  gradeMatchesCurrentSubmission: s.grade_matches_current_submission ?? null,
+  excused: s.excused ?? null, late: s.late ?? null, missing: s.missing ?? null,
+});
+
+export interface CanvasAssignmentDetail extends CanvasAssignment {
+  pointsPossible: number | null;
+  allowedAttempts: number | null;
+  allowedExtensions: string[] | null;
+  lockedForUser: boolean | null;
+  unlockAt: string | null;
+  lockAt: string | null;
+  groupAssignment: boolean;
+  submission: ReturnType<typeof submissionRecordView> & {
+    /** null 表示接口未返回；空数组表示没有评语。 */
+    comments: { id: string | null; author: string | null; text: string | null; createdAt: string | null; attachments: ReturnType<typeof attachmentView>[] }[] | null;
+    history: ReturnType<typeof submissionRecordView>[] | null;
+  };
+}
 
 /** eLearning（Canvas）平台数据类型：只保留用得到的字段。 */
 export interface CanvasCourse {
@@ -67,6 +127,7 @@ export const MAX_DOWNLOAD_BYTES = 200 * 1024 * 1024;
 export interface ElearningClient {
   listCourses(): Promise<CanvasCourse[]>;
   listAssignments(courseId: string): Promise<CanvasAssignment[]>;
+  getAssignment?(courseId: string, assignmentId: string): Promise<CanvasAssignmentDetail>;
   listAnnouncements(courseIds: string[], since?: string): Promise<CanvasAnnouncement[]>;
   /** 轻量检查会话是否有效 */
   ping(): Promise<boolean>;
@@ -139,8 +200,10 @@ export class CanvasClient implements ElearningClient {
   }
 
   /** 返回单个对象的接口（例如某个文件的信息） */
-  private async getObject<T>(path: string): Promise<T> {
-    const res = await this.request(new URL(`/api/v1${path}`, this.base).href);
+  private async getObject<T>(path: string, params: Record<string, string[]> = {}): Promise<T> {
+    const url = new URL(`/api/v1${path}`, this.base);
+    for (const [key, values] of Object.entries(params)) for (const value of values) url.searchParams.append(key, value);
+    const res = await this.request(url.href);
     if (!res.headers.get('content-type')?.includes('json')) throw new Error('eLearning 未返回接口数据，请重新登录后同步');
     const data: unknown = await res.json();
     if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('eLearning 返回的数据格式不正确');
@@ -240,6 +303,52 @@ export class CanvasClient implements ElearningClient {
       updatedAt: a.updated_at,
       markedDone: planner.has(String(a.id)) || modules.has(String(a.id)) || a.submission?.excused === true,
     }));
+  }
+
+  /** 读取单份作业及本人提交、评语和历史；不请求会标记已读的 read_status。 */
+  async getAssignment(courseId: string, assignmentId: string): Promise<CanvasAssignmentDetail> {
+    if (!/^[1-9]\d*$/.test(courseId) || !/^[1-9]\d*$/.test(assignmentId)) {
+      throw new FduError('BAD_ARGS', '课程和作业 id 必须为正整数。', '用 `fdu elearning assignments --course <课程>` 查询作业 id。');
+    }
+    const path = `/courses/${courseId}/assignments/${assignmentId}`;
+    let rawAssignment: unknown;
+    let rawSubmission: unknown;
+    try {
+      [rawAssignment, rawSubmission] = await Promise.all([
+        this.getObject(path),
+        this.getObject(`${path}/submissions/self`, { 'include[]': ['submission_comments', 'submission_history'] }),
+      ]);
+    } catch (e) {
+      if ((e as { status?: number }).status === 404) throw new FduError('NOT_FOUND', '没有找到这份作业或本人的提交记录。', '核对 --course 和 --assignment，或在作业网页查看当前账号的访问权限。');
+      throw e;
+    }
+    const assignment = assignmentDetailSchema.safeParse(rawAssignment);
+    const submission = submissionDetailSchema.safeParse(rawSubmission);
+    if (!assignment.success || !submission.success || assignment.data.id !== assignmentId || assignment.data.course_id !== courseId
+      || submission.data.assignment_id !== assignmentId || submission.data.submission_history?.some((s) => s.assignment_id !== assignmentId)) {
+      throw new FduError('FORMAT_CHANGED', 'eLearning 作业详情或提交记录格式异常。', '请在网页核对；向开发者反馈这条错误，不要附上作业内容、成绩或登录凭证。');
+    }
+    const a = assignment.data;
+    const s = submission.data;
+    const [planner, modules] = await Promise.all([this.markedInPlanner(), this.markedInModules(courseId)]);
+    return {
+      id: a.id, courseId: a.course_id, name: a.name, description: a.description ?? undefined,
+      dueAt: a.due_at ?? undefined, htmlUrl: a.html_url, submissionTypes: a.submission_types,
+      submitted: ['submitted', 'graded', 'pending_review'].includes(s.workflow_state),
+      submittedAt: s.submitted_at ?? undefined, updatedAt: a.updated_at ?? undefined,
+      markedDone: planner.has(a.id) || modules.has(a.id) || s.excused === true,
+      pointsPossible: a.points_possible ?? null, allowedAttempts: a.allowed_attempts ?? null,
+      allowedExtensions: a.allowed_extensions ?? null, lockedForUser: a.locked_for_user ?? null,
+      unlockAt: a.unlock_at ?? null, lockAt: a.lock_at ?? null, groupAssignment: !!a.group_category_id,
+      submission: {
+        ...submissionRecordView(s),
+        comments: s.submission_comments?.map((c) => ({
+          id: c.id ?? null, author: c.author_name ?? null, text: c.comment ?? null, createdAt: c.created_at ?? null,
+          attachments: (c.attachments ?? []).map(attachmentView),
+        })) ?? null,
+        history: s.submission_history?.map(submissionRecordView) ?? null,
+      },
+    };
   }
 
   /**
