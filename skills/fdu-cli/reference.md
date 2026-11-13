@@ -119,7 +119,7 @@ fdu doctor
 
 ## eLearning
 
-课程、作业查询与提交、截止时间、公告、课件下载（简写 fdu todo）
+课程、作业查询与提交、截止时间、单元和页面、公告、课件下载（简写 fdu todo）
 
 ### `fdu elearning submit`
 
@@ -186,6 +186,37 @@ fdu elearning assignments --course 数据结构 --assignment 123
 |---|---|---|---|
 | `--course` | string |  | 课程 id 或名称关键词 |
 | `--days` | integer |  | 最近几天，默认 14 |
+
+### `fdu elearning modules`
+
+课程单元和完整条目：页面、文件、作业、测验和外部链接，以及顺序、缩进、开放限制；只列信息，不标记学习进度。
+
+登录：复旦账号 · 只读 · MCP：`elearning_modules`
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `--course` | string | 是 | 课程 id 或唯一名称关键词 |
+
+```bash
+fdu elearning modules --course 数据结构
+```
+
+### `fdu elearning pages`
+
+课程页面：默认列出页面标题和标识，加 --page 读取 HTML 原文、纯文本和链接；只读，不执行脚本或打开外部链接。
+
+登录：复旦账号 · 只读 · MCP：`elearning_pages`
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `--course` | string | 是 | 课程 id 或唯一名称关键词 |
+| `--page` | string |  | 页面标识：来自页面列表的 url 或单元条目的 pageUrl；按数字 id 查时用 page_id:123 |
+| `--search` | string |  | 按标题搜索页面列表；不能与 page 同用 |
+
+```bash
+fdu elearning pages --course 数据结构
+fdu elearning pages --course 数据结构 --page lab-guide
+```
 
 ### `fdu elearning files`
 

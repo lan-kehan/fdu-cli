@@ -1,6 +1,7 @@
 import { NeedLoginError, PLATFORM_URLS, isPermissionDenied, isUisLoginUrl, type FudanAuth } from '../core/fudan-auth';
 import { FduError } from '../core/errors';
 import { z } from 'zod';
+import { checkCourseId, checkPageKey, moduleView, pageDetailView, parseModuleItems, parseModules, parsePages, readContent, type CanvasModule, type CanvasPage, type CanvasPageDetail } from './elearning-content';
 
 const canvasId = z.union([z.number().int().positive().max(Number.MAX_SAFE_INTEGER), z.string().regex(/^[1-9]\d*$/)]).transform(String);
 const nullableText = z.string().nullish();
@@ -128,6 +129,9 @@ export interface ElearningClient {
   listCourses(): Promise<CanvasCourse[]>;
   listAssignments(courseId: string): Promise<CanvasAssignment[]>;
   getAssignment?(courseId: string, assignmentId: string): Promise<CanvasAssignmentDetail>;
+  listModules?(courseId: string): Promise<CanvasModule[]>;
+  listPages?(courseId: string, search?: string): Promise<CanvasPage[]>;
+  getPage?(courseId: string, page: string): Promise<CanvasPageDetail>;
   listAnnouncements(courseIds: string[], since?: string): Promise<CanvasAnnouncement[]>;
   /** 轻量检查会话是否有效 */
   ping(): Promise<boolean>;
@@ -349,6 +353,33 @@ export class CanvasClient implements ElearningClient {
         history: s.submission_history?.map(submissionRecordView) ?? null,
       },
     };
+  }
+
+  /** 课程单元及其全部可见条目；只列元数据，不访问会记录学习进度的模块跳转地址。 */
+  async listModules(courseId: string): Promise<CanvasModule[]> {
+    checkCourseId(courseId);
+    return readContent(async () => {
+      const modules = parseModules(await this.get(`/courses/${courseId}/modules`, { 'include[]': ['items', 'content_details'] }));
+      const result: CanvasModule[] = [];
+      for (const m of modules) {
+        // Canvas 可以省略大单元的内联条目；必须另查完整分页，不能误报为空单元。
+        const raw = !m.items || (m.items_count !== undefined && m.items_count > m.items.length)
+          ? await this.get(`/courses/${courseId}/modules/${m.id}/items`, { 'include[]': ['content_details'] }) : m.items;
+        result.push(moduleView(m, parseModuleItems(raw, m.id)));
+      }
+      return result;
+    });
+  }
+
+  async listPages(courseId: string, search?: string): Promise<CanvasPage[]> {
+    checkCourseId(courseId);
+    return readContent(async () => parsePages(await this.get(`/courses/${courseId}/pages`, search ? { search_term: search } : {})));
+  }
+
+  async getPage(courseId: string, page: string): Promise<CanvasPageDetail> {
+    checkCourseId(courseId);
+    checkPageKey(page);
+    return readContent(async () => pageDetailView(await this.getObject(`/courses/${courseId}/pages/${encodeURIComponent(page)}`), courseId));
   }
 
   /**

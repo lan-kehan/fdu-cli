@@ -137,6 +137,13 @@ async function resolveCourses(ctx: Ctx, query?: string): Promise<CanvasCourse[]>
   return hit;
 }
 
+async function resolveCourse(ctx: Ctx, query: string): Promise<CanvasCourse> {
+  const courses = await resolveCourses(ctx, query);
+  const exact = courses.find((c) => c.id === query);
+  if (!exact && courses.length !== 1) throw new FduError('BAD_ARGS', '课程关键词匹配了多门课。', '用 `fdu elearning courses` 查询准确的课程 id。');
+  return exact ?? courses[0];
+}
+
 async function pool<T, R>(items: T[], n: number, fn: (x: T) => Promise<R>): Promise<R[]> {
   const out: R[] = new Array(items.length);
   let i = 0;
@@ -734,6 +741,32 @@ export const OPS: Op[] = [
       const names = new Map(courses.map((c) => [c.id, c.name]));
       const list = await elearning(ctx).listAnnouncements(courses.map((c) => c.id), since);
       return list.map((x) => ({ ...x, course: names.get(x.courseId), postedAtShanghai: shanghaiDate(x.postedAt) }));
+    },
+  }),
+  op({
+    name: 'elearning.modules', summary: '课程单元和完整条目：页面、文件、作业、测验和外部链接，以及顺序、缩进、开放限制；只列信息，不标记学习进度。', login: 'uis', effect: 'read',
+    params: { course: z.string().min(1).describe('课程 id 或唯一名称关键词') },
+    examples: ['fdu elearning modules --course 数据结构'],
+    async run(ctx, a) {
+      const course = await resolveCourse(ctx, a.course);
+      return { courseId: course.id, course: course.name, modules: await elearning(ctx).listModules(course.id) };
+    },
+  }),
+  op({
+    name: 'elearning.pages', summary: '课程页面：默认列出页面标题和标识，加 --page 读取 HTML 原文、纯文本和链接；只读，不执行脚本或打开外部链接。', login: 'uis', effect: 'read',
+    params: {
+      course: z.string().min(1).describe('课程 id 或唯一名称关键词'),
+      page: z.string().min(1).max(300).optional().describe('页面标识：来自页面列表的 url 或单元条目的 pageUrl；按数字 id 查时用 page_id:123'),
+      search: z.string().min(1).optional().describe('按标题搜索页面列表；不能与 page 同用'),
+    },
+    examples: ['fdu elearning pages --course 数据结构', 'fdu elearning pages --course 数据结构 --page lab-guide'],
+    async run(ctx, a) {
+      if (a.page && a.search) throw new FduError('BAD_ARGS', '--page 和 --search 不能同时使用。', '列页面时用 --search，读取单个页面时用 --page。');
+      const course = await resolveCourse(ctx, a.course);
+      const client = elearning(ctx);
+      return a.page
+        ? { courseId: course.id, course: course.name, page: await client.getPage(course.id, a.page) }
+        : { courseId: course.id, course: course.name, pages: await client.listPages(course.id, a.search) };
     },
   }),
   op({

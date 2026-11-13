@@ -2,6 +2,8 @@
 
 ## 未发布
 
+- 新增只读 `fdu elearning modules` 和 `fdu elearning pages`（CLI/MCP 共用）：完整读取课程单元、分页条目和页面列表，支持标题搜索、单页 HTML/纯文本/链接读取；不标完成、不执行脚本或自动打开外部链接。
+
 - `fdu elearning assignments --course <课程> --assignment <作业id>`：只读查询本人当前提交、链接/附件、提交历史、分数和评语，不标记已读。保留数组输出及原有列表字段；该操作新增 `sensitive: true`，缓存有效期由 7 天改为 24 小时。
 
 - 新增 `fdu elearning submit` / MCP `elearning_submit`：复用 UIS 登录会话提交文件、HTML 文本或网址，无需 Canvas API token；支持只读预览、重交保护、提交结果核验和不确定结果提示。新增 `remote-write` 效果及 `SUBMISSION_UNKNOWN` 错误，作业提交作为默认只读约定的唯一远端写入例外。
