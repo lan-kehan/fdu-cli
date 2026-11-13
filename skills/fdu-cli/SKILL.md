@@ -65,6 +65,7 @@ description: 查询复旦大学校园服务：eLearning 课程 / 作业 / DDL / 
 | 校园卡 / 电费 | `fdu card balance`、`fdu dorm electricity` |
 | 这个月吃饭花了多少 | `fdu card transactions --from 2026-11-01 --limit 0`（只要统计，不要明细） |
 | 课程口碑 | `fdu danke search --keyword 数据结构` → `fdu danke reviews --id <course_group_id>` |
+| 树洞最新帖子、分区和翻页 | `fdu hole latest --length 5` 默认按发帖时间；`--sort updated` 按最后回复时间。分区先查 `fdu hole divisions`，再传 `--division <id>`。翻页传最后一条的 `createdAt` / `updatedAt` 给 `--before`（与排序对应，须含时区），不能用分钟精度的 `time` 作为精确游标；边界可能重复，按 `hole_id` 去重。旧帖被回复顶起不代表新发布 |
 | 树洞里怎么说 | `fdu hole search --keyword 食堂` → `fdu hole read --id <洞号>` |
 | 最近的邮件 | `fdu mail list --days 3`，正文 `fdu mail read --uid <uid>` |
 

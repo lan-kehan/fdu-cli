@@ -1,4 +1,5 @@
 import { isWebvpnLogin, toWebvpnUrl } from './webvpn';
+import { FduError } from '../core/errors';
 
 /**
  * 复旦树洞（旦挞茶楼）与蛋壳课评，只读。
@@ -32,6 +33,15 @@ export interface TreeholeDeps {
   now?: () => number;
 }
 
+export interface HoleListOptions {
+  divisionId?: number;
+  length?: number;
+  tag?: string;
+  sort?: 'created' | 'updated';
+  /** 带时区的 ISO 时间游标；向更早方向翻页。 */
+  before?: string;
+}
+
 const clean = (s: unknown, max = 600) => (typeof s === 'string' ? s : '')
   .replace(/!\[[^\]]*\]\([^)]*\)/g, '[图片]').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
 
@@ -39,7 +49,7 @@ const clean = (s: unknown, max = 600) => (typeof s === 'string' ? s : '')
 export interface TreeholeApi {
   searchFloors(keyword: string, opts?: { limit?: number; accurate?: boolean; withinDays?: number }): Promise<unknown[]>;
   hole(holeId: number, opts?: { start?: number; length?: number }): Promise<unknown>;
-  latest(opts?: { divisionId?: number; length?: number; tag?: string }): Promise<unknown[]>;
+  latest(opts?: HoleListOptions): Promise<unknown[]>;
   searchCourses(keyword: string, limit?: number): Promise<unknown[]>;
   courseReviews(groupId: number, maxReviews?: number): Promise<unknown>;
 }
@@ -150,14 +160,36 @@ export class TreeholeClient implements TreeholeApi {
     return { ...holeView(hole), floors: (Array.isArray(floors) ? floors : []).map((f) => floorView(f, 600)) };
   }
 
-  async latest(opts: { divisionId?: number; length?: number; tag?: string } = {}) {
-    const holes = await this.get<RawHole[]>(`${FORUM}/holes`, { division_id: opts.divisionId ?? 1, length: Math.min(20, opts.length ?? 10), tag: opts.tag });
-    return (Array.isArray(holes) ? holes : []).map(holeView);
+  async latest(opts: HoleListOptions = {}) {
+    const length = opts.length ?? 10;
+    const division = opts.divisionId ?? 1;
+    const sort = opts.sort ?? 'created';
+    const before = opts.before ?? new Date(this.now()).toISOString();
+    if (!Number.isInteger(length) || length < 1 || length > 50 || !Number.isInteger(division) || division < 1
+      || !['created', 'updated'].includes(sort) || !/(?:Z|[+-]\d{2}:\d{2})$/i.test(before) || !Number.isFinite(Date.parse(before))) {
+      throw new FduError('BAD_ARGS', '列表参数不正确：length 为 1–50，division 为正整数，sort 为 created / updated，before 为带时区的 ISO 时间。', '用 `fdu describe hole.latest` 查看参数。');
+    }
+    // 只参考公开接口协议：明确传递时间游标与排序，避免平台默认的回复排序被称为“最新发布”。
+    const order = sort === 'created' ? 'time_created' : 'time_updated';
+    const holes = await this.get<unknown>(`${FORUM}/holes`, { division_id: division, length, tag: opts.tag, start_time: before, order });
+    const invalid = () => new FduError('FORMAT_CHANGED', '树洞帖子列表格式异常，无法确认时间顺序。', '稍后重试；仍失败请向开发者反馈错误信息，不要附上令牌或帖子内容。');
+    if (!Array.isArray(holes)) throw invalid();
+    const rows = holes as RawHole[];
+    for (const h of rows) {
+      if (!h || !Number.isSafeInteger(h.hole_id) || h.hole_id! <= 0 || typeof h[order] !== 'string' || !Number.isFinite(Date.parse(h[order]!))) throw invalid();
+    }
+    // 某些部署会忽略 length；本地再限制数量并去掉同一响应中的重复项。
+    rows.sort((a, b) => Date.parse(b[order]!) - Date.parse(a[order]!) || b.hole_id! - a.hole_id!);
+    const seen = new Set<number>();
+    return rows.filter((h) => { if (seen.has(h.hole_id!)) return false; seen.add(h.hole_id!); return true; }).slice(0, length).map(holeView);
   }
 
   async divisions() {
-    const d = await this.get<{ division_id: number; name: string; description?: string }[]>(`${FORUM}/divisions`);
-    return (Array.isArray(d) ? d : []).map((x) => ({ division_id: x.division_id, name: x.name, description: clean(x.description, 80) }));
+    const d = await this.get<unknown>(`${FORUM}/divisions`);
+    if (!Array.isArray(d) || d.some((x) => !x || !Number.isSafeInteger(x.division_id) || x.division_id <= 0 || typeof x.name !== 'string')) {
+      throw new FduError('FORMAT_CHANGED', '树洞分区列表格式异常。', '稍后重试；仍失败请向开发者反馈这条错误。');
+    }
+    return d.map((x: { division_id: number; name: string; description?: string }) => ({ division_id: x.division_id, name: x.name, description: clean(x.description, 80) }));
   }
 
   // ---------- 蛋壳课评 ----------
@@ -185,7 +217,7 @@ export class TreeholeClient implements TreeholeApi {
 }
 
 interface RawFloor { floor_id?: number; hole_id?: number; ranking?: number; anonyname?: string; content?: string; time_created?: string; like?: number; reply_to?: number; special_tag?: string }
-interface RawHole { hole_id?: number; division_id?: number; tags?: { name?: string }[]; reply?: number; view?: number; time_created?: string; floors?: { first_floor?: RawFloor; prefetch?: RawFloor[] } }
+interface RawHole { hole_id?: number; division_id?: number; tags?: { name?: string }[]; reply?: number; view?: number; time_created?: string; time_updated?: string; floors?: { first_floor?: RawFloor; prefetch?: RawFloor[] } }
 interface RawCourseGroup { id?: number; name?: string; code?: string; department?: string; credits?: number[] | number; campus_name?: string; review_count?: number; course_count?: number }
 interface RawCourse { teachers?: string; year?: number; semester?: number; review_list?: { title?: string; content?: string; time_created?: string; rank?: Record<string, number>; vote?: number; remark?: number }[] }
 
@@ -207,5 +239,5 @@ function floorView(f: RawFloor, max: number) {
 }
 function holeView(h: RawHole) {
   const first = h.floors?.first_floor ?? h.floors?.prefetch?.[0];
-  return { hole_id: h.hole_id, division_id: h.division_id, tags: (h.tags ?? []).map((t) => t.name).filter(Boolean), replies: h.reply, views: h.view, time: h.time_created?.slice(0, 16).replace('T', ' '), first_floor: clean(first?.content, 300) };
+  return { hole_id: h.hole_id, division_id: h.division_id, tags: (h.tags ?? []).map((t) => t.name).filter(Boolean), replies: h.reply, views: h.view, time: h.time_created?.slice(0, 16).replace('T', ' '), first_floor: clean(first?.content, 300), createdAt: h.time_created, updatedAt: h.time_updated };
 }

@@ -1250,9 +1250,19 @@ export const OPS: Op[] = [
     async run(ctx, a) { return treehole(ctx).hole(a.id, { start: a.start, length: a.length }); },
   }),
   op({
-    name: 'hole.latest', summary: '树洞最新的帖子。', login: 'hole', effect: 'read',
-    params: { length: int('几条，默认 10', 1, 50), tag: z.string().optional().describe('标签') },
-    async run(ctx, a) { return treehole(ctx).latest({ length: a.length, tag: a.tag }); },
+    name: 'hole.divisions', summary: '树洞分区的 id、名称和简介；供 hole latest --division 使用。', login: 'hole', effect: 'read', params: {},
+    async run(ctx) { return treehole(ctx).divisions(); },
+  }),
+  op({
+    name: 'hole.latest', summary: '树洞帖子：默认按发帖时间从新到旧；可按最后回复时间排序、指定分区、用时间游标翻页。严格限制返回数量。', login: 'hole', effect: 'read', cacheTtl: 5 * 60_000,
+    params: {
+      length: int('最多几条，默认 10', 1, 50), tag: z.string().optional().describe('标签'),
+      division: int('分区 id，来自 hole divisions，默认 1', 1, 100_000),
+      sort: z.enum(['created', 'updated']).optional().describe('created 按发帖时间（默认）；updated 按最后回复时间'),
+      before: z.iso.datetime({ offset: true }).optional().describe('翻页游标，带时区的 ISO 时间；取上一页最后一条的 createdAt 或 updatedAt（与 sort 对应），默认当前时间'),
+    },
+    examples: ['fdu hole latest --length 5', 'fdu hole latest --sort updated --length 10', 'fdu hole latest --division 1 --before 2026-11-01T12:00:00+08:00'],
+    async run(ctx, a) { return treehole(ctx).latest({ length: a.length, tag: a.tag, divisionId: a.division, sort: a.sort, before: a.before }); },
   }),
   op({
     name: 'danke.search', summary: '在蛋壳课评（danke.fduhole.com，旦挞的课程评价）里搜索课程。', login: 'hole', effect: 'read',

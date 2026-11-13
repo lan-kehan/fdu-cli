@@ -3048,12 +3048,35 @@ var TreeholeClient = class {
     return { ...holeView(hole), floors: (Array.isArray(floors) ? floors : []).map((f) => floorView(f, 600)) };
   }
   async latest(opts = {}) {
-    const holes = await this.get(`${FORUM}/holes`, { division_id: opts.divisionId ?? 1, length: Math.min(20, opts.length ?? 10), tag: opts.tag });
-    return (Array.isArray(holes) ? holes : []).map(holeView);
+    const length = opts.length ?? 10;
+    const division = opts.divisionId ?? 1;
+    const sort = opts.sort ?? "created";
+    const before = opts.before ?? new Date(this.now()).toISOString();
+    if (!Number.isInteger(length) || length < 1 || length > 50 || !Number.isInteger(division) || division < 1 || !["created", "updated"].includes(sort) || !/(?:Z|[+-]\d{2}:\d{2})$/i.test(before) || !Number.isFinite(Date.parse(before))) {
+      throw new FduError("BAD_ARGS", "\u5217\u8868\u53C2\u6570\u4E0D\u6B63\u786E\uFF1Alength \u4E3A 1\u201350\uFF0Cdivision \u4E3A\u6B63\u6574\u6570\uFF0Csort \u4E3A created / updated\uFF0Cbefore \u4E3A\u5E26\u65F6\u533A\u7684 ISO \u65F6\u95F4\u3002", "\u7528 `fdu describe hole.latest` \u67E5\u770B\u53C2\u6570\u3002");
+    }
+    const order = sort === "created" ? "time_created" : "time_updated";
+    const holes = await this.get(`${FORUM}/holes`, { division_id: division, length, tag: opts.tag, start_time: before, order });
+    const invalid = () => new FduError("FORMAT_CHANGED", "\u6811\u6D1E\u5E16\u5B50\u5217\u8868\u683C\u5F0F\u5F02\u5E38\uFF0C\u65E0\u6CD5\u786E\u8BA4\u65F6\u95F4\u987A\u5E8F\u3002", "\u7A0D\u540E\u91CD\u8BD5\uFF1B\u4ECD\u5931\u8D25\u8BF7\u5411\u5F00\u53D1\u8005\u53CD\u9988\u9519\u8BEF\u4FE1\u606F\uFF0C\u4E0D\u8981\u9644\u4E0A\u4EE4\u724C\u6216\u5E16\u5B50\u5185\u5BB9\u3002");
+    if (!Array.isArray(holes)) throw invalid();
+    const rows = holes;
+    for (const h of rows) {
+      if (!h || !Number.isSafeInteger(h.hole_id) || h.hole_id <= 0 || typeof h[order] !== "string" || !Number.isFinite(Date.parse(h[order]))) throw invalid();
+    }
+    rows.sort((a, b) => Date.parse(b[order]) - Date.parse(a[order]) || b.hole_id - a.hole_id);
+    const seen = /* @__PURE__ */ new Set();
+    return rows.filter((h) => {
+      if (seen.has(h.hole_id)) return false;
+      seen.add(h.hole_id);
+      return true;
+    }).slice(0, length).map(holeView);
   }
   async divisions() {
     const d = await this.get(`${FORUM}/divisions`);
-    return (Array.isArray(d) ? d : []).map((x) => ({ division_id: x.division_id, name: x.name, description: clean2(x.description, 80) }));
+    if (!Array.isArray(d) || d.some((x) => !x || !Number.isSafeInteger(x.division_id) || x.division_id <= 0 || typeof x.name !== "string")) {
+      throw new FduError("FORMAT_CHANGED", "\u6811\u6D1E\u5206\u533A\u5217\u8868\u683C\u5F0F\u5F02\u5E38\u3002", "\u7A0D\u540E\u91CD\u8BD5\uFF1B\u4ECD\u5931\u8D25\u8BF7\u5411\u5F00\u53D1\u8005\u53CD\u9988\u8FD9\u6761\u9519\u8BEF\u3002");
+    }
+    return d.map((x) => ({ division_id: x.division_id, name: x.name, description: clean2(x.description, 80) }));
   }
   // ---------- 蛋壳课评 ----------
   async searchCourses(keyword, limit = 10) {
@@ -3105,7 +3128,7 @@ function floorView(f, max) {
 }
 function holeView(h) {
   const first2 = h.floors?.first_floor ?? h.floors?.prefetch?.[0];
-  return { hole_id: h.hole_id, division_id: h.division_id, tags: (h.tags ?? []).map((t) => t.name).filter(Boolean), replies: h.reply, views: h.view, time: h.time_created?.slice(0, 16).replace("T", " "), first_floor: clean2(first2?.content, 300) };
+  return { hole_id: h.hole_id, division_id: h.division_id, tags: (h.tags ?? []).map((t) => t.name).filter(Boolean), replies: h.reply, views: h.view, time: h.time_created?.slice(0, 16).replace("T", " "), first_floor: clean2(first2?.content, 300), createdAt: h.time_created, updatedAt: h.time_updated };
 }
 
 // src/services/calendar.ts
@@ -5481,13 +5504,31 @@ var OPS = [
     }
   }),
   op({
-    name: "hole.latest",
-    summary: "\u6811\u6D1E\u6700\u65B0\u7684\u5E16\u5B50\u3002",
+    name: "hole.divisions",
+    summary: "\u6811\u6D1E\u5206\u533A\u7684 id\u3001\u540D\u79F0\u548C\u7B80\u4ECB\uFF1B\u4F9B hole latest --division \u4F7F\u7528\u3002",
     login: "hole",
     effect: "read",
-    params: { length: int2("\u51E0\u6761\uFF0C\u9ED8\u8BA4 10", 1, 50), tag: z3.string().optional().describe("\u6807\u7B7E") },
+    params: {},
+    async run(ctx) {
+      return treehole(ctx).divisions();
+    }
+  }),
+  op({
+    name: "hole.latest",
+    summary: "\u6811\u6D1E\u5E16\u5B50\uFF1A\u9ED8\u8BA4\u6309\u53D1\u5E16\u65F6\u95F4\u4ECE\u65B0\u5230\u65E7\uFF1B\u53EF\u6309\u6700\u540E\u56DE\u590D\u65F6\u95F4\u6392\u5E8F\u3001\u6307\u5B9A\u5206\u533A\u3001\u7528\u65F6\u95F4\u6E38\u6807\u7FFB\u9875\u3002\u4E25\u683C\u9650\u5236\u8FD4\u56DE\u6570\u91CF\u3002",
+    login: "hole",
+    effect: "read",
+    cacheTtl: 5 * 6e4,
+    params: {
+      length: int2("\u6700\u591A\u51E0\u6761\uFF0C\u9ED8\u8BA4 10", 1, 50),
+      tag: z3.string().optional().describe("\u6807\u7B7E"),
+      division: int2("\u5206\u533A id\uFF0C\u6765\u81EA hole divisions\uFF0C\u9ED8\u8BA4 1", 1, 1e5),
+      sort: z3.enum(["created", "updated"]).optional().describe("created \u6309\u53D1\u5E16\u65F6\u95F4\uFF08\u9ED8\u8BA4\uFF09\uFF1Bupdated \u6309\u6700\u540E\u56DE\u590D\u65F6\u95F4"),
+      before: z3.iso.datetime({ offset: true }).optional().describe("\u7FFB\u9875\u6E38\u6807\uFF0C\u5E26\u65F6\u533A\u7684 ISO \u65F6\u95F4\uFF1B\u53D6\u4E0A\u4E00\u9875\u6700\u540E\u4E00\u6761\u7684 createdAt \u6216 updatedAt\uFF08\u4E0E sort \u5BF9\u5E94\uFF09\uFF0C\u9ED8\u8BA4\u5F53\u524D\u65F6\u95F4")
+    },
+    examples: ["fdu hole latest --length 5", "fdu hole latest --sort updated --length 10", "fdu hole latest --division 1 --before 2026-11-01T12:00:00+08:00"],
     async run(ctx, a) {
-      return treehole(ctx).latest({ length: a.length, tag: a.tag });
+      return treehole(ctx).latest({ length: a.length, tag: a.tag, divisionId: a.division, sort: a.sort, before: a.before });
     }
   }),
   op({

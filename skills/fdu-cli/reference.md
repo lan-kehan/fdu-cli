@@ -716,16 +716,31 @@ fdu bus schedule --holiday
 | `--start` | integer |  | 从第几楼开始 |
 | `--length` | integer |  | 读几楼，默认 30 |
 
+### `fdu hole divisions`
+
+树洞分区的 id、名称和简介；供 hole latest --division 使用。
+
+登录：树洞账号 · 只读 · MCP：`hole_divisions`
+
 ### `fdu hole latest`
 
-树洞最新的帖子。
+树洞帖子：默认按发帖时间从新到旧；可按最后回复时间排序、指定分区、用时间游标翻页。严格限制返回数量。
 
 登录：树洞账号 · 只读 · MCP：`hole_latest`
 
 | 参数 | 类型 | 必填 | 说明 |
 |---|---|---|---|
-| `--length` | integer |  | 几条，默认 10 |
+| `--length` | integer |  | 最多几条，默认 10 |
 | `--tag` | string |  | 标签 |
+| `--division` | integer |  | 分区 id，来自 hole divisions，默认 1 |
+| `--sort` | created / updated |  | created 按发帖时间（默认）；updated 按最后回复时间 |
+| `--before` | string |  | 翻页游标，带时区的 ISO 时间；取上一页最后一条的 createdAt 或 updatedAt（与 sort 对应），默认当前时间 |
+
+```bash
+fdu hole latest --length 5
+fdu hole latest --sort updated --length 10
+fdu hole latest --division 1 --before 2026-11-01T12:00:00+08:00
+```
 
 ## 蛋壳课评
 

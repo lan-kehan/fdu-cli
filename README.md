@@ -81,11 +81,28 @@ args = ["mcp"]
 | 食堂 | `fdu canteen crowd` | 各食堂现在的就餐人数和容量 | 复旦账号 |
 | 校车 | `fdu bus schedule` | 校区间校车时刻表（工作日 / 节假日） | 复旦账号 |
 | 宿舍 | `fdu dorm electricity` | 剩余电量 | 复旦账号 |
-| 树洞、蛋壳课评 | `fdu hole search / read / latest`、`fdu danke search / reviews` | 树洞（旦挞茶楼）帖子；蛋壳课评（danke.fduhole.com）的课程评分和评价 | 树洞账号 |
+| 树洞、蛋壳课评 | `fdu hole search / read / latest / divisions`、`fdu danke search / reviews` | 树洞（旦挞茶楼）帖子；蛋壳课评（danke.fduhole.com）的课程评分和评价 | 树洞账号 |
 | 学生邮箱 | `fdu mail list / read` | 收件箱（只读，不改已读状态） | 客户端专用密码 |
 | 日历 | `fdu calendar export` | 课表、考试、作业截止导出成 .ics，导入苹果日历 / Outlook / Google 日历 | 复旦账号 |
 
 每个命令的参数和示例：`fdu help <服务>`、`fdu help <服务> <命令>`，或者看 [命令参考](skills/fdu-cli/reference.md)。
+
+### 树洞帖子排序和翻页
+
+```sh
+fdu hole latest --length 5
+fdu hole latest --sort updated --length 10
+fdu hole divisions
+fdu hole latest --division 1 --before 2026-11-01T12:00:00+08:00
+```
+
+`hole.latest` 现在默认按**发帖时间**从新到旧返回；原先依赖平台默认顺序，会混入被回复顶上来的旧帖。需要按最后回复时间查看活跃帖子时，使用 `--sort updated`。返回仍为数组，原有字段保留；`hole.latest` 和 `hole.read` 的帖子对象新增原始 `createdAt`、`updatedAt`，其中旧字段 `time` 始终表示发帖时间。
+
+`--length` 表示最多返回多少条，支持 1–50（默认 10）；即使服务端忽略数量参数，本机也会排序、去重并限制条数。服务端可能返回不足请求数量的帖子，不虚构补齐。`--division` 默认 1，其他分区 id 从 `hole.divisions` 查询，`--tag` 可继续筛选标签。
+
+翻页时，把上一页最后一条的 `createdAt`（默认顺序）或 `updatedAt`（`--sort updated`）传给 `--before`。参数须为带时区的 ISO 时间，默认使用当前时间；平台若返回未带时区的时间，需要先核对并补齐时区。接口时间边界可能重叠，连续翻页可按 `hole_id` 去重；不支持从只有分钟精度的旧字段 `time` 精确翻页。查询缓存有效期为 5 分钟，`--cached` 和失败时附带的旧结果均需核对缓存时间。
+
+仅参考 [DanXi 公开请求协议](https://github.com/DanXi-Dev/DanXi/blob/main/lib/repository/forum/forum_repository.dart) 的参数信息，不复制其实现；树洞查询保持只读，不发帖、回复或点赞。
 
 ### 读取课程单元和页面
 
@@ -187,7 +204,7 @@ fdu describe jw.lessons     # 一个命令的说明（JSON，给 AI 看）
 | 3 | 需要登录或配置（`NEED_LOGIN`、`NEED_HOLE_LOGIN`、`NEED_MAIL_SETUP`），或要用户自己在终端输入密码（`NEED_TERMINAL`） |
 
 - 时间都是 ISO 格式（UTC，末尾 Z），常用字段另附 `*Shanghai`（北京时间）。
-- 只读查询的结果会缓存在本机：加 `--cached` 不联网，返回上次的结果（带 `cachedAt`）；联网失败时，错误里附上上次的结果 `cached`。缓存有有效期：实时数据（人数、空闲、余额、电量）30 分钟，成绩、消费、邮件等隐私数据 24 小时，其他 7 天；最多留 200 份。
+- 只读查询的结果会缓存在本机：加 `--cached` 不联网，返回上次的结果（带 `cachedAt`）；联网失败时，错误里附上上次的结果 `cached`。缓存有有效期：树洞列表 5 分钟，实时数据（人数、空闲、余额、电量）30 分钟，成绩、消费、邮件等隐私数据 24 小时，其他 7 天；最多留 200 份。
 - 网络不稳时，查询请求遇到超时、连接被重置或学校系统临时出错会自动重试 1–2 次。
 - `FORMAT_CHANGED` 表示学校返回的内容和预期不同（多半是页面改版），不是网络问题。
 - 教学周按学校校历计算（一周从周日开始，第 0 周是报到注册周）；内置 2026—2027 学年校历，之后的学期按教务系统的开学日期推算。

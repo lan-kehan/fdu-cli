@@ -2,6 +2,8 @@
 
 ## 未发布
 
+- 修正 `hole.latest`：默认明确按发帖时间排序，支持 `--sort updated`、`--division` 和 `--before` 时间游标，严格限制 1–50 条并去重，缓存缩短为 5 分钟。新增 `hole.divisions`；帖子对象新增原始 `createdAt` / `updatedAt`，保留原字段和数组输出。
+
 - 新增只读 `fdu elearning modules` 和 `fdu elearning pages`（CLI/MCP 共用）：完整读取课程单元、分页条目和页面列表，支持标题搜索、单页 HTML/纯文本/链接读取；不标完成、不执行脚本或自动打开外部链接。
 
 - `fdu elearning assignments --course <课程> --assignment <作业id>`：只读查询本人当前提交、链接/附件、提交历史、分数和评语，不标记已读。保留数组输出及原有列表字段；该操作新增 `sensitive: true`，缓存有效期由 7 天改为 24 小时。
