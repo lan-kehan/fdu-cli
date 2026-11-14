@@ -119,7 +119,7 @@ fdu doctor
 
 ## eLearning
 
-课程、作业查询与提交、截止时间、单元和页面、公告、课件下载（简写 fdu todo）
+课程、作业查询与提交、截止时间、平时成绩、单元和页面、公告、讨论区、站内信、课件下载（简写 fdu todo）
 
 ### `fdu elearning submit`
 
@@ -216,6 +216,54 @@ fdu elearning modules --course 数据结构
 ```bash
 fdu elearning pages --course 数据结构
 fdu elearning pages --course 数据结构 --page lab-guide
+```
+
+### `fdu elearning grades`
+
+各门课在 eLearning 上的当前总评；加 --course 再列出这门课各作业组的权重和每项作业的得分、满分、班级统计。分数为 null 表示老师没开放或还没评分，不是零分。这是 eLearning 上的平时成绩，最终成绩看 jw grades。
+
+登录：复旦账号 · 只读 · **隐私数据** · MCP：`elearning_grades`
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `--course` | string |  | 课程 id 或唯一名称关键词：返回这门课的作业组和各项得分；不传时只返回各门课的总评 |
+
+```bash
+fdu elearning grades
+fdu elearning grades --course 数据结构
+```
+
+### `fdu elearning discussions`
+
+课程讨论区：默认列出主题（标题、发帖人、正文、回帖数、未读数）；加 --topic 读取这个主题的全部回帖（树状）。只读，不标已读、不发帖；公告用 elearning announcements。
+
+登录：复旦账号 · 只读 · MCP：`elearning_discussions`
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `--course` | string | 是 | 课程 id 或唯一名称关键词 |
+| `--topic` | string |  | 讨论主题 id，来自主题列表 |
+
+```bash
+fdu elearning discussions --course 数据结构
+fdu elearning discussions --course 数据结构 --topic 123
+```
+
+### `fdu elearning inbox`
+
+eLearning 站内信（老师、助教、同学发的私信）：默认列出收件箱里最近的会话；加 --conversation 读取这个会话的全部消息和附件信息。只读，不标已读、不回复。
+
+登录：复旦账号 · 只读 · **隐私数据** · MCP：`elearning_inbox`
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `--scope` | inbox / unread / starred / sent / archived |  | 看哪一类：inbox 收件箱（默认）、unread 未读、starred 星标、sent 已发送、archived 已归档；不能与 conversation 同用 |
+| `--limit` | integer |  | 最多几个会话，默认 30 |
+| `--conversation` | string |  | 会话 id，来自会话列表 |
+
+```bash
+fdu elearning inbox --scope unread
+fdu elearning inbox --conversation 123
 ```
 
 ### `fdu elearning files`

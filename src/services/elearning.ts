@@ -1,6 +1,8 @@
 import { NeedLoginError, PLATFORM_URLS, isPermissionDenied, isUisLoginUrl, type FudanAuth } from '../core/fudan-auth';
 import { FduError } from '../core/errors';
 import { z } from 'zod';
+import { parseEnrollmentGrades, parseGradeGroups, readGradeData, type CanvasCourseGrades, type CourseTotals } from './elearning-grades';
+import { checkConversationId, checkTopicId, conversationDetailView, discussionView, parseConversations, parseTopics, readDiscussions, readInbox, type CanvasConversation, type CanvasConversationDetail, type CanvasDiscussion, type CanvasDiscussionTopic, type InboxScope } from './elearning-messages';
 import { checkCourseId, checkPageKey, moduleView, pageDetailView, parseModuleItems, parseModules, parsePages, readContent, type CanvasModule, type CanvasPage, type CanvasPageDetail } from './elearning-content';
 
 const canvasId = z.union([z.number().int().positive().max(Number.MAX_SAFE_INTEGER), z.string().regex(/^[1-9]\d*$/)]).transform(String);
@@ -171,12 +173,12 @@ export class CanvasClient implements ElearningClient {
     }
   }
 
-  private async get<T>(path: string, params: Record<string, string | string[]> = {}): Promise<T> {
+  private async get<T>(path: string, params: Record<string, string | string[]> = {}, maxRows = Infinity): Promise<T> {
     const first = new URL(`/api/v1${path}`, this.base);
     for (const [k, v] of Object.entries(params)) {
       for (const one of Array.isArray(v) ? v : [v]) first.searchParams.append(k, one);
     }
-    first.searchParams.set('per_page', '100');
+    first.searchParams.set('per_page', String(Math.min(100, maxRows)));
     let url: URL | undefined = first;
     const seen = new Set<string>();
     const rows: unknown[] = [];
@@ -198,9 +200,9 @@ export class CanvasClient implements ElearningClient {
       rows.push(...data);
       const next: string | undefined = res.headers.get('link')?.split(/,(?=\s*<)/)
         .find((part) => /;\s*rel="?next"?(?:\s*;|\s*$)/i.test(part))?.match(/<([^>]+)>/)?.[1];
-      url = next ? new URL(next, url) : undefined;
+      url = next && rows.length < maxRows ? new URL(next, url) : undefined;
     }
-    return rows as T;
+    return (rows.length > maxRows ? rows.slice(0, maxRows) : rows) as T;
   }
 
   /** 返回单个对象的接口（例如某个文件的信息） */
@@ -380,6 +382,52 @@ export class CanvasClient implements ElearningClient {
     checkCourseId(courseId);
     checkPageKey(page);
     return readContent(async () => pageDetailView(await this.getObject(`/courses/${courseId}/pages/${encodeURIComponent(page)}`), courseId));
+  }
+
+  /** 本人以学生身份加入的各门课的总评（一次请求）；老师没有开放总评时分数为 null。 */
+  async listGradeTotals(): Promise<Map<string, CourseTotals>> {
+    return readGradeData(async () => parseEnrollmentGrades(await this.get('/users/self/enrollments', { 'type[]': ['StudentEnrollment'], 'state[]': ['active'] })));
+  }
+
+  /** 一门课的作业组（权重、去掉最低分规则）和每项作业的本人得分、班级统计。 */
+  async getCourseGrades(courseId: string): Promise<CanvasCourseGrades> {
+    checkCourseId(courseId);
+    return readGradeData(async () => {
+      const [course, groups] = await Promise.all([
+        this.getObject<{ apply_assignment_group_weights?: unknown }>(`/courses/${courseId}`),
+        this.get(`/courses/${courseId}/assignment_groups`, { 'include[]': ['assignments', 'submission', 'score_statistics'] }),
+      ]);
+      const weighted = course.apply_assignment_group_weights;
+      return { weighted: typeof weighted === 'boolean' ? weighted : null, groups: parseGradeGroups(groups) };
+    });
+  }
+
+  /** 课程讨论区的主题（不含公告）；只读列表，不改变已读状态。 */
+  async listDiscussions(courseId: string): Promise<CanvasDiscussionTopic[]> {
+    checkCourseId(courseId);
+    return readDiscussions(async () => parseTopics(await this.get(`/courses/${courseId}/discussion_topics`)));
+  }
+
+  /** 一个讨论主题和全部回帖（树状）。读取 view 接口不会把回帖标为已读。 */
+  async getDiscussion(courseId: string, topicId: string): Promise<CanvasDiscussion> {
+    checkCourseId(courseId);
+    checkTopicId(topicId);
+    const path = `/courses/${courseId}/discussion_topics/${topicId}`;
+    return readDiscussions(async () => {
+      const [topic, view] = await Promise.all([this.getObject(path), this.getObject(`${path}/view`)]);
+      return discussionView(topic, view);
+    });
+  }
+
+  /** 站内信会话列表，新的在前；列表接口不改变已读状态。 */
+  async listConversations(scope: InboxScope = 'inbox', limit = 30): Promise<CanvasConversation[]> {
+    return readInbox(async () => parseConversations(await this.get('/conversations', { scope }, limit)));
+  }
+
+  /** 一个会话的全部消息。Canvas 默认会把会话标为已读，必须显式关闭。 */
+  async getConversation(conversationId: string): Promise<CanvasConversationDetail> {
+    checkConversationId(conversationId);
+    return readInbox(async () => conversationDetailView(await this.getObject(`/conversations/${conversationId}`, { auto_mark_as_read: ['false'] }), conversationId));
   }
 
   /**

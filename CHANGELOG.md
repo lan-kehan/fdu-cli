@@ -2,6 +2,8 @@
 
 ## 未发布
 
+- 新增只读 `fdu elearning grades`、`fdu elearning discussions`、`fdu elearning inbox`（CLI/MCP 共用）：各门课在 eLearning 上的当前总评，以及单门课的作业组权重、每项得分和班级统计；课程讨论区的主题和树状回帖；站内信会话和消息。不标已读、不发帖、不回复；`elearning.grades` 和 `elearning.inbox` 标为隐私数据。
+
 - 修正 `hole.latest`：默认明确按发帖时间排序，支持 `--sort updated`、`--division` 和 `--before` 时间游标，严格限制 1–50 条并去重，缓存缩短为 5 分钟。新增 `hole.divisions`；帖子对象新增原始 `createdAt` / `updatedAt`，保留原字段和数组输出。
 
 - 新增只读 `fdu elearning modules` 和 `fdu elearning pages`（CLI/MCP 共用）：完整读取课程单元、分页条目和页面列表，支持标题搜索、单页 HTML/纯文本/链接读取；不标完成、不执行脚本或自动打开外部链接。

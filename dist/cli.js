@@ -578,12 +578,12 @@ var Cache = class {
 // src/mcp.ts
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { z as z5 } from "zod";
+import { z as z7 } from "zod";
 
 // src/ops.ts
 import { accessSync, closeSync, constants as fsConstants, existsSync as existsSync2, fstatSync, mkdirSync as mkdirSync2, openSync, readFileSync as readFileSync2, realpathSync, statSync as statSync2, writeFileSync as writeFileSync2 } from "node:fs";
 import { basename, dirname as dirname2, extname as extname2, isAbsolute, join as join2, relative, resolve } from "node:path";
-import { z as z3 } from "zod";
+import { z as z5 } from "zod";
 
 // src/core/auth.ts
 var ELEARNING_SELF = `${PLATFORM_URLS.elearning.base}/api/v1/users/self`;
@@ -1063,8 +1063,8 @@ async function readSelectedCourses(reader, which = "current") {
   if (reader.render) {
     try {
       const html = await reader.render(COURSE_SELECT_PAGE, (h) => /选课|轮次/.test(h) && !/加载中/.test(h));
-      const text3 = load2(html)("body").text().replace(/\s+/g, " ").trim();
-      const m = text3.match(/.{0,40}(?:轮次|选课时间|开放时间|第[一二三四]轮).{0,200}/);
+      const text5 = load2(html)("body").text().replace(/\s+/g, " ").trim();
+      const m = text5.match(/.{0,40}(?:轮次|选课时间|开放时间|第[一二三四]轮).{0,200}/);
       rounds = m?.[0];
     } catch {
     }
@@ -1084,12 +1084,12 @@ function parseLibrary(body3) {
     throw new Error("\u56FE\u4E66\u9986\u63A5\u53E3\u8FD4\u56DE\u7684\u683C\u5F0F\u548C\u9884\u671F\u4E0D\u540C\u3002");
   }
   if (String(data?.code) !== "1" || !Array.isArray(data.data)) throw new Error("\u56FE\u4E66\u9986\u4EBA\u6570\u6682\u65F6\u67E5\u4E0D\u5230\uFF0C\u8BF7\u7A0D\u540E\u518D\u8BD5\u3002");
-  const num4 = (v) => typeof v === "number" || typeof v === "string" && /^\d+$/.test(v.trim()) ? Number(v) : null;
+  const num6 = (v) => typeof v === "number" || typeof v === "string" && /^\d+$/.test(v.trim()) ? Number(v) : null;
   return data.data.flatMap((x) => {
     const r = x;
     const name = typeof r.campusName === "string" ? r.campusName.trim() : "";
     if (!name) return [];
-    return [{ name, inside: num4(r.inNum), remaining: num4(r.canInNumb), openTime: typeof r.libraryOpenTime === "string" && r.libraryOpenTime.trim() ? r.libraryOpenTime.trim() : void 0 }];
+    return [{ name, inside: num6(r.inNum), remaining: num6(r.canInNumb), openTime: typeof r.libraryOpenTime === "string" && r.libraryOpenTime.trim() ? r.libraryOpenTime.trim() : void 0 }];
   });
 }
 async function readLibrary(post) {
@@ -1103,8 +1103,8 @@ function parseCardBalance(html) {
     $(".payway-box-bottom-item p").first().text(),
     $('[class*="balance"]').first().text()
   ].map((t) => t.replace(/\s/g, ""));
-  for (const text3 of candidates) {
-    const m = /^(?:[¥￥]|CNY|RMB|余额[:：]?)?(-?\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?|-?\d+(?:\.\d{1,2})?)元?$/i.exec(text3);
+  for (const text5 of candidates) {
+    const m = /^(?:[¥￥]|CNY|RMB|余额[:：]?)?(-?\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?|-?\d+(?:\.\d{1,2})?)元?$/i.exec(text5);
     if (m) return Number(m[1].replace(/,/g, ""));
   }
   throw new Error("\u6CA1\u6709\u5728\u6821\u56ED\u5361\u9875\u9762\u4E0A\u627E\u5230\u4F59\u989D\uFF0C\u5B66\u6821\u9875\u9762\u53EF\u80FD\u66F4\u65B0\u4E86\u3002");
@@ -1128,14 +1128,14 @@ function parseElectricity(body3) {
   }
   if (Number(data.e) !== 0 || !data.d) throw new Error(data.m ? `\u7535\u91CF\u7CFB\u7EDF\uFF1A${data.m}` : "\u7535\u91CF\u7CFB\u7EDF\u6CA1\u6709\u8FD4\u56DE\u5BBF\u820D\u4FE1\u606F\uFF08\u53EF\u80FD\u6CA1\u6709\u7ED1\u5B9A\u5BBF\u820D\uFF09\u3002");
   const d = data.d;
-  const num4 = (v) => v === null || v === void 0 || v === "" ? void 0 : Number(v);
-  const remaining = num4(d.fj_surplus);
+  const num6 = (v) => v === null || v === void 0 || v === "" ? void 0 : Number(v);
+  const remaining = num6(d.fj_surplus);
   if (remaining === void 0 || !Number.isFinite(remaining)) throw new Error("\u7535\u91CF\u7CFB\u7EDF\u6CA1\u6709\u8FD4\u56DE\u5269\u4F59\u7535\u91CF\u3002");
   return {
     room: [d.xq, d.ssmc, d.fjmc].filter((x) => x !== null && x !== void 0 && x !== "").join(" "),
     remainingKwh: remaining,
-    usedKwh: num4(d.fj_used),
-    totalKwh: num4(d.fj_all),
+    usedKwh: num6(d.fj_used),
+    totalKwh: num6(d.fj_all),
     updatedAt: typeof d.fj_update_time === "string" ? d.fj_update_time : void 0
   };
 }
@@ -1207,12 +1207,12 @@ function filterBus(trips, opts) {
   return trips.filter((t) => hit(t.from, opts.from) && hit(t.to, opts.to));
 }
 async function readBus(reader, holiday) {
-  const text3 = await readZlapp(reader, BUS_URL, {
+  const text5 = await readZlapp(reader, BUS_URL, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded; charset=UTF-8" },
     body: `holiday=${holiday ? 1 : 0}`
   });
-  return parseBus(text3);
+  return parseBus(text5);
 }
 
 // src/services/canteen.ts
@@ -1303,8 +1303,8 @@ function packSession(files, now = Date.now()) {
   const bundle = { v: 1, exportedAt: new Date(now).toISOString(), files };
   return PREFIX + gzipSync(Buffer.from(JSON.stringify(bundle))).toString("base64url");
 }
-function unpackSession(text3) {
-  const s = text3.replace(/\s+/g, "");
+function unpackSession(text5) {
+  const s = text5.replace(/\s+/g, "");
   const at = s.indexOf(PREFIX);
   if (at < 0) throw new Error("\u8FD9\u4E0D\u662F fdu auth export \u5BFC\u51FA\u7684\u5185\u5BB9\uFF08\u5E94\u8BE5\u4EE5 fdu-session-v1: \u5F00\u5934\uFF09\u3002");
   let bundle;
@@ -1340,6 +1340,9 @@ function ago(iso, now = Date.now()) {
 }
 
 // src/services/elearning.ts
+import { z as z4 } from "zod";
+
+// src/services/elearning-grades.ts
 import { z as z2 } from "zod";
 
 // src/services/elearning-content.ts
@@ -1456,10 +1459,15 @@ function pageDetailView(data, courseId) {
       return [];
     }
   });
+  return { ...pageView(p), body: body3, text: body3 === null ? null : htmlText(body3), links };
+}
+function htmlText(html) {
+  const $ = load4(html);
+  $("script, style, noscript, iframe, form").remove();
   $("br").replaceWith("\n");
   $("p, div, li, h1, h2, h3, h4, h5, h6, tr, blockquote, pre").append("\n");
   $("td, th").append("	");
-  return { ...pageView(p), body: body3, text: body3 === null ? null : $.root().text().replace(/[ \t]+/g, " ").replace(/\n\s*\n/g, "\n").trim(), links };
+  return $.root().text().replace(/[ \t]+/g, " ").replace(/\n\s*\n/g, "\n").trim();
 }
 function checkCourseId(courseId) {
   if (!/^[1-9]\d*$/.test(courseId)) throw new FduError("BAD_ARGS", "\u8BFE\u7A0B id \u5FC5\u987B\u4E3A\u6B63\u6574\u6570\u3002", "\u7528 `fdu elearning courses` \u67E5\u8BE2\u8BFE\u7A0B id\u3002");
@@ -1470,74 +1478,358 @@ function checkPageKey(page) {
   }
 }
 async function readContent(read) {
+  return readCanvas({
+    denied: ["\u6CA1\u6709\u6743\u9650\u67E5\u770B\u8FD9\u90E8\u5206\u8BFE\u7A0B\u5185\u5BB9\u3002", "\u5728 eLearning \u7F51\u9875\u786E\u8BA4\u5F53\u524D\u8D26\u53F7\u5DF2\u52A0\u5165\u8BFE\u7A0B\u3001\u680F\u76EE\u548C\u5185\u5BB9\u5DF2\u5F00\u653E\u3002"],
+    missing: ["\u6CA1\u6709\u627E\u5230\u8BFE\u7A0B\u5355\u5143\u6216\u9875\u9762\u3002", "\u6838\u5BF9\u8BFE\u7A0B id \u548C\u9875\u9762\u6807\u8BC6\uFF1B\u9875\u9762\u53EF\u80FD\u5DF2\u5220\u9664\u6216\u6CA1\u6709\u5BF9\u4F60\u5F00\u653E\u3002"],
+    format: formatError
+  }, read);
+}
+async function readCanvas(on, read) {
   try {
     return await read();
   } catch (e) {
     const status = e.status;
-    if (status === 403) throw new FduError("PERMISSION", "\u6CA1\u6709\u6743\u9650\u67E5\u770B\u8FD9\u90E8\u5206\u8BFE\u7A0B\u5185\u5BB9\u3002", "\u5728 eLearning \u7F51\u9875\u786E\u8BA4\u5F53\u524D\u8D26\u53F7\u5DF2\u52A0\u5165\u8BFE\u7A0B\u3001\u680F\u76EE\u548C\u5185\u5BB9\u5DF2\u5F00\u653E\u3002");
-    if (status === 404) throw new FduError("NOT_FOUND", "\u6CA1\u6709\u627E\u5230\u8BFE\u7A0B\u5355\u5143\u6216\u9875\u9762\u3002", "\u6838\u5BF9\u8BFE\u7A0B id \u548C\u9875\u9762\u6807\u8BC6\uFF1B\u9875\u9762\u53EF\u80FD\u5DF2\u5220\u9664\u6216\u6CA1\u6709\u5BF9\u4F60\u5F00\u653E\u3002");
-    if (e.message === "eLearning \u8FD4\u56DE\u7684\u6570\u636E\u683C\u5F0F\u4E0D\u6B63\u786E") throw formatError();
+    if (status === 403) throw new FduError("PERMISSION", ...on.denied);
+    if (status === 404) throw new FduError("NOT_FOUND", ...on.missing);
+    if (e.message === "eLearning \u8FD4\u56DE\u7684\u6570\u636E\u683C\u5F0F\u4E0D\u6B63\u786E") throw on.format();
     throw e;
   }
 }
 
+// src/services/elearning-grades.ts
+var text3 = z2.string().nullish();
+var num2 = z2.number().nullish();
+var bool = z2.boolean().nullish();
+var enrollmentSchema = z2.object({
+  course_id: id,
+  grades: z2.object({ html_url: text3, current_score: num2, final_score: num2, current_grade: text3, final_grade: text3 }).nullish()
+});
+var groupSchema = z2.object({
+  id,
+  name: z2.string(),
+  position: num2,
+  group_weight: num2,
+  rules: z2.object({ drop_lowest: num2, drop_highest: num2 }).nullish(),
+  assignments: z2.array(z2.object({
+    id,
+    name: z2.string(),
+    due_at: text3,
+    points_possible: num2,
+    html_url: text3,
+    grading_type: text3,
+    omit_from_final_grade: bool,
+    submission: z2.object({
+      score: num2,
+      grade: text3,
+      workflow_state: text3,
+      submitted_at: text3,
+      graded_at: text3,
+      excused: bool,
+      late: bool,
+      missing: bool
+    }).nullish(),
+    score_statistics: z2.object({ min: num2, max: num2, mean: num2 }).nullish()
+  })).nullish()
+});
+var formatError2 = () => new FduError("FORMAT_CHANGED", "eLearning \u6210\u7EE9\u6570\u636E\u683C\u5F0F\u5F02\u5E38\u3002", "\u8BF7\u5728\u8BFE\u7A0B\u7F51\u9875\u7684\u300C\u6210\u7EE9\u300D\u91CC\u6838\u5BF9\uFF1B\u5411\u5F00\u53D1\u8005\u53CD\u9988\u9519\u8BEF\u4FE1\u606F\uFF0C\u4E0D\u8981\u9644\u4E0A\u6210\u7EE9\u6216\u767B\u5F55\u51ED\u8BC1\u3002");
+var NO_TOTALS = { asStudent: false, currentScore: null, currentGrade: null, finalScore: null, finalGrade: null, htmlUrl: null };
+function parseEnrollmentGrades(data) {
+  const parsed = z2.array(enrollmentSchema).safeParse(data);
+  if (!parsed.success) throw formatError2();
+  const out = /* @__PURE__ */ new Map();
+  for (const e of parsed.data) {
+    const g = e.grades;
+    const totals = {
+      asStudent: true,
+      currentScore: g?.current_score ?? null,
+      currentGrade: g?.current_grade ?? null,
+      finalScore: g?.final_score ?? null,
+      finalGrade: g?.final_grade ?? null,
+      htmlUrl: g?.html_url ?? null
+    };
+    const had = out.get(e.course_id);
+    if (!had || had.currentScore === null && had.finalScore === null) out.set(e.course_id, totals);
+  }
+  return out;
+}
+function parseGradeGroups(data) {
+  const parsed = z2.array(groupSchema).safeParse(data);
+  if (!parsed.success) throw formatError2();
+  return parsed.data.sort((a, b) => (a.position ?? 0) - (b.position ?? 0)).map((g) => ({
+    id: g.id,
+    name: g.name,
+    /** 占总评的百分比；课程没有按作业组加权时没有意义（见 weighted） */
+    weight: g.group_weight ?? null,
+    dropLowest: g.rules?.drop_lowest ?? null,
+    dropHighest: g.rules?.drop_highest ?? null,
+    assignments: (g.assignments ?? []).map((a) => ({
+      id: a.id,
+      name: a.name,
+      dueAt: a.due_at ?? null,
+      htmlUrl: a.html_url ?? null,
+      pointsPossible: a.points_possible ?? null,
+      gradingType: a.grading_type ?? null,
+      omitFromFinalGrade: a.omit_from_final_grade ?? null,
+      /** null 表示还没评分或分数未公布，不是零分 */
+      score: a.submission?.score ?? null,
+      grade: a.submission?.grade ?? null,
+      state: a.submission?.workflow_state ?? null,
+      submittedAt: a.submission?.submitted_at ?? null,
+      gradedAt: a.submission?.graded_at ?? null,
+      excused: a.submission?.excused ?? null,
+      late: a.submission?.late ?? null,
+      missing: a.submission?.missing ?? null,
+      /** 全班的最低、最高、平均分；老师没有开放时为 null */
+      stats: a.score_statistics ? { min: a.score_statistics.min ?? null, max: a.score_statistics.max ?? null, mean: a.score_statistics.mean ?? null } : null
+    }))
+  }));
+}
+var readGradeData = (read) => readCanvas({
+  denied: ["\u6CA1\u6709\u6743\u9650\u67E5\u770B\u8FD9\u95E8\u8BFE\u7684\u6210\u7EE9\u3002", "\u5728 eLearning \u8BFE\u7A0B\u7F51\u9875\u786E\u8BA4\u300C\u6210\u7EE9\u300D\u680F\u76EE\u5BF9\u5B66\u751F\u5F00\u653E\u3002"],
+  missing: ["\u6CA1\u6709\u627E\u5230\u8FD9\u95E8\u8BFE\u7684\u6210\u7EE9\u3002", "\u7528 `fdu elearning courses` \u6838\u5BF9\u8BFE\u7A0B id\u3002"],
+  format: formatError2
+}, read);
+
+// src/services/elearning-messages.ts
+import { z as z3 } from "zod";
+var text4 = z3.string().nullish();
+var num3 = z3.number().nullish();
+var bool2 = z3.boolean().nullish();
+var attachmentSchema = z3.object({ id, display_name: text4, filename: text4, url: text4, size: num3, "content-type": text4 });
+var attachmentView = (f) => ({
+  id: f.id,
+  name: f.display_name ?? f.filename ?? `\u6587\u4EF6 ${f.id}`,
+  url: f.url ?? null,
+  size: f.size ?? null,
+  contentType: f["content-type"] ?? null
+});
+var checkId = (value, what, hint) => {
+  if (!/^[1-9]\d*$/.test(value)) throw new FduError("BAD_ARGS", `${what} id \u5FC5\u987B\u4E3A\u6B63\u6574\u6570\u3002`, hint);
+};
+var topicSchema = z3.object({
+  id,
+  title: text4,
+  message: text4,
+  html_url: text4,
+  posted_at: text4,
+  last_reply_at: text4,
+  discussion_subentry_count: num3,
+  unread_count: num3,
+  read_state: text4,
+  user_name: text4,
+  author: z3.object({ display_name: text4 }).nullish(),
+  pinned: bool2,
+  locked: bool2,
+  locked_for_user: bool2,
+  lock_explanation: text4,
+  require_initial_post: bool2,
+  assignment_id: id.nullish(),
+  attachments: z3.array(attachmentSchema).nullish()
+});
+var entrySchema = z3.lazy(() => z3.object({
+  id,
+  user_id: id.nullish(),
+  parent_id: id.nullish(),
+  created_at: text4,
+  updated_at: text4,
+  message: text4,
+  deleted: bool2,
+  attachment: attachmentSchema.nullish(),
+  replies: z3.array(entrySchema).nullish()
+}));
+var viewSchema = z3.object({
+  // 匿名讨论里参与者没有数字 id
+  participants: z3.array(z3.object({ id: id.nullish().catch(null), display_name: text4 })).nullish(),
+  unread_entries: z3.array(id).nullish(),
+  view: z3.array(entrySchema)
+});
+var discussionFormat = () => new FduError("FORMAT_CHANGED", "eLearning \u8BA8\u8BBA\u533A\u6570\u636E\u683C\u5F0F\u5F02\u5E38\u3002", "\u8BF7\u5728\u8BFE\u7A0B\u7F51\u9875\u7684\u300C\u8BA8\u8BBA\u300D\u91CC\u6838\u5BF9\uFF1B\u5411\u5F00\u53D1\u8005\u53CD\u9988\u9519\u8BEF\u4FE1\u606F\uFF0C\u4E0D\u8981\u9644\u4E0A\u8BA8\u8BBA\u5185\u5BB9\u6216\u767B\u5F55\u51ED\u8BC1\u3002");
+function topicView(t) {
+  return {
+    id: t.id,
+    title: t.title ?? "",
+    author: t.author?.display_name ?? t.user_name ?? null,
+    postedAt: t.posted_at ?? null,
+    lastReplyAt: t.last_reply_at ?? null,
+    replies: t.discussion_subentry_count ?? null,
+    unread: t.unread_count ?? null,
+    readState: t.read_state ?? null,
+    pinned: t.pinned ?? null,
+    locked: t.locked ?? null,
+    lockedForUser: t.locked_for_user ?? null,
+    lockExplanation: t.lock_explanation ?? null,
+    /** 需要先发帖才能看到别人的回帖 */
+    requireInitialPost: t.require_initial_post ?? null,
+    /** 计分讨论对应的作业 id */
+    assignmentId: t.assignment_id ?? null,
+    htmlUrl: t.html_url ?? null,
+    /** 主题正文的纯文本；锁定时为 null */
+    text: t.locked_for_user || t.message == null ? null : htmlText(t.message),
+    attachments: (t.attachments ?? []).map(attachmentView)
+  };
+}
+function parseTopics(data) {
+  const parsed = z3.array(topicSchema).safeParse(data);
+  if (!parsed.success) throw discussionFormat();
+  return parsed.data.map(topicView);
+}
+function discussionView(topic, view) {
+  const t = topicSchema.safeParse(topic);
+  const v = viewSchema.safeParse(view);
+  if (!t.success || !v.success) throw discussionFormat();
+  const names = new Map((v.data.participants ?? []).flatMap((p) => p.id ? [[p.id, p.display_name ?? null]] : []));
+  const unread = new Set(v.data.unread_entries ?? []);
+  let count = 0;
+  const entry = (e) => {
+    count++;
+    return {
+      id: e.id,
+      parentId: e.parent_id ?? null,
+      author: e.user_id ? names.get(e.user_id) ?? null : null,
+      createdAt: e.created_at ?? null,
+      updatedAt: e.updated_at ?? null,
+      deleted: !!e.deleted,
+      unread: unread.has(e.id),
+      text: e.deleted || e.message == null ? null : htmlText(e.message),
+      attachments: e.attachment ? [attachmentView(e.attachment)] : [],
+      replies: (e.replies ?? []).map(entry)
+    };
+  };
+  const entries = v.data.view.map(entry);
+  return { ...topicView(t.data), entriesCount: count, entries };
+}
+var checkTopicId = (topicId) => checkId(topicId, "\u8BA8\u8BBA\u4E3B\u9898", "\u7528 `fdu elearning discussions --course <\u8BFE\u7A0B>` \u67E5\u8BE2\u4E3B\u9898 id\u3002");
+var readDiscussions = (read) => readCanvas({
+  denied: ["\u6CA1\u6709\u6743\u9650\u67E5\u770B\u8FD9\u4E2A\u8BA8\u8BBA\u3002", "\u8BA8\u8BBA\u533A\u53EF\u80FD\u6CA1\u6709\u5BF9\u5B66\u751F\u5F00\u653E\uFF0C\u6216\u8005\u8981\u6C42\u5148\u5728\u7F51\u9875\u4E0A\u53D1\u5E16\u624D\u80FD\u770B\u5230\u522B\u4EBA\u7684\u56DE\u5E16\u3002"],
+  missing: ["\u6CA1\u6709\u627E\u5230\u8BA8\u8BBA\u533A\u6216\u8BA8\u8BBA\u4E3B\u9898\u3002", "\u7528 `fdu elearning discussions --course <\u8BFE\u7A0B>` \u6838\u5BF9\u4E3B\u9898 id\uFF1B\u8FD9\u95E8\u8BFE\u53EF\u80FD\u6CA1\u6709\u5F00\u8BA8\u8BBA\u533A\u3002"],
+  format: discussionFormat
+}, read);
+var conversationSchema = z3.object({
+  id,
+  subject: text4,
+  workflow_state: text4,
+  last_message: text4,
+  last_message_at: text4,
+  message_count: num3,
+  starred: bool2,
+  context_name: text4,
+  participants: z3.array(z3.object({ id, name: text4 })).nullish()
+});
+var conversationDetailSchema = conversationSchema.extend({
+  messages: z3.array(z3.object({
+    id,
+    created_at: text4,
+    body: text4,
+    author_id: id.nullish(),
+    generated: bool2,
+    attachments: z3.array(attachmentSchema).nullish()
+  }))
+});
+var inboxFormat = () => new FduError("FORMAT_CHANGED", "eLearning \u7AD9\u5185\u4FE1\u6570\u636E\u683C\u5F0F\u5F02\u5E38\u3002", "\u8BF7\u5728 eLearning \u7F51\u9875\u7684\u300C\u6536\u4EF6\u7BB1\u300D\u91CC\u6838\u5BF9\uFF1B\u5411\u5F00\u53D1\u8005\u53CD\u9988\u9519\u8BEF\u4FE1\u606F\uFF0C\u4E0D\u8981\u9644\u4E0A\u4FE1\u4EF6\u5185\u5BB9\u6216\u767B\u5F55\u51ED\u8BC1\u3002");
+function conversationView(c) {
+  return {
+    id: c.id,
+    subject: c.subject ?? "",
+    /** read 已读、unread 未读、archived 已归档 */
+    state: c.workflow_state ?? null,
+    lastMessage: c.last_message ?? null,
+    lastMessageAt: c.last_message_at ?? null,
+    messageCount: c.message_count ?? null,
+    starred: c.starred ?? null,
+    /** 所属课程或小组的名称 */
+    context: c.context_name ?? null,
+    participants: (c.participants ?? []).map((p) => p.name ?? null)
+  };
+}
+function parseConversations(data) {
+  const parsed = z3.array(conversationSchema).safeParse(data);
+  if (!parsed.success) throw inboxFormat();
+  return parsed.data.map(conversationView);
+}
+function conversationDetailView(data, conversationId) {
+  const parsed = conversationDetailSchema.safeParse(data);
+  if (!parsed.success || parsed.data.id !== conversationId) throw inboxFormat();
+  const c = parsed.data;
+  const names = new Map((c.participants ?? []).map((p) => [p.id, p.name ?? null]));
+  return {
+    ...conversationView(c),
+    /** 新的在前（Canvas 的顺序） */
+    messages: c.messages.map((m) => ({
+      id: m.id,
+      author: m.author_id ? names.get(m.author_id) ?? null : null,
+      createdAt: m.created_at ?? null,
+      /** 系统自动生成的消息（如「某人加入了会话」） */
+      generated: m.generated ?? null,
+      text: m.body ?? null,
+      attachments: (m.attachments ?? []).map(attachmentView)
+    }))
+  };
+}
+var INBOX_SCOPES = ["inbox", "unread", "starred", "sent", "archived"];
+var checkConversationId = (conversationId) => checkId(conversationId, "\u4F1A\u8BDD", "\u7528 `fdu elearning inbox` \u67E5\u8BE2\u4F1A\u8BDD id\u3002");
+var readInbox = (read) => readCanvas({
+  denied: ["\u6CA1\u6709\u6743\u9650\u67E5\u770B eLearning \u7AD9\u5185\u4FE1\u3002", "\u5B66\u6821\u53EF\u80FD\u6CA1\u6709\u5F00\u653E\u7AD9\u5185\u4FE1\u529F\u80FD\uFF1B\u5728 eLearning \u7F51\u9875\u5DE6\u4FA7\u7684\u300C\u6536\u4EF6\u7BB1\u300D\u786E\u8BA4\u3002"],
+  missing: ["\u6CA1\u6709\u627E\u5230\u8FD9\u4E2A\u4F1A\u8BDD\u3002", "\u7528 `fdu elearning inbox` \u6838\u5BF9\u4F1A\u8BDD id\uFF1B\u5DF2\u5F52\u6863\u7684\u7528 --scope archived \u67E5\u3002"],
+  format: inboxFormat
+}, read);
+
 // src/services/elearning.ts
-var canvasId = z2.union([z2.number().int().positive().max(Number.MAX_SAFE_INTEGER), z2.string().regex(/^[1-9]\d*$/)]).transform(String);
-var nullableText = z2.string().nullish();
-var attachmentSchema = z2.object({
+var canvasId = z4.union([z4.number().int().positive().max(Number.MAX_SAFE_INTEGER), z4.string().regex(/^[1-9]\d*$/)]).transform(String);
+var nullableText = z4.string().nullish();
+var attachmentSchema2 = z4.object({
   id: canvasId,
   display_name: nullableText,
   filename: nullableText,
   url: nullableText,
-  size: z2.number().nonnegative().nullish(),
+  size: z4.number().nonnegative().nullish(),
   "content-type": nullableText
 });
-var submissionRecordSchema = z2.object({
+var submissionRecordSchema = z4.object({
   id: canvasId.nullish(),
   assignment_id: canvasId,
-  workflow_state: z2.string().min(1),
-  attempt: z2.number().int().nonnegative().nullish(),
+  workflow_state: z4.string().min(1),
+  attempt: z4.number().int().nonnegative().nullish(),
   submission_type: nullableText,
   submitted_at: nullableText,
   body: nullableText,
   url: nullableText,
-  attachments: z2.array(attachmentSchema).nullish(),
-  score: z2.number().nullish(),
+  attachments: z4.array(attachmentSchema2).nullish(),
+  score: z4.number().nullish(),
   grade: nullableText,
   graded_at: nullableText,
-  grade_matches_current_submission: z2.boolean().nullish(),
-  excused: z2.boolean().nullish(),
-  late: z2.boolean().nullish(),
-  missing: z2.boolean().nullish()
+  grade_matches_current_submission: z4.boolean().nullish(),
+  excused: z4.boolean().nullish(),
+  late: z4.boolean().nullish(),
+  missing: z4.boolean().nullish()
 });
 var submissionDetailSchema = submissionRecordSchema.extend({
-  submission_comments: z2.array(z2.object({
+  submission_comments: z4.array(z4.object({
     id: canvasId.nullish(),
     author_name: nullableText,
     comment: nullableText,
     created_at: nullableText,
-    attachments: z2.array(attachmentSchema).nullish()
+    attachments: z4.array(attachmentSchema2).nullish()
   })).nullish(),
-  submission_history: z2.array(submissionRecordSchema).nullish()
+  submission_history: z4.array(submissionRecordSchema).nullish()
 });
-var assignmentDetailSchema = z2.object({
+var assignmentDetailSchema = z4.object({
   id: canvasId,
   course_id: canvasId,
-  name: z2.string(),
+  name: z4.string(),
   description: nullableText,
-  html_url: z2.string(),
-  submission_types: z2.array(z2.string()),
+  html_url: z4.string(),
+  submission_types: z4.array(z4.string()),
   due_at: nullableText,
   updated_at: nullableText,
-  points_possible: z2.number().nonnegative().nullish(),
-  allowed_attempts: z2.number().int().min(-1).nullish(),
-  allowed_extensions: z2.array(z2.string()).nullish(),
-  locked_for_user: z2.boolean().nullish(),
+  points_possible: z4.number().nonnegative().nullish(),
+  allowed_attempts: z4.number().int().min(-1).nullish(),
+  allowed_extensions: z4.array(z4.string()).nullish(),
+  locked_for_user: z4.boolean().nullish(),
   unlock_at: nullableText,
   lock_at: nullableText,
   group_category_id: canvasId.nullish()
 });
-var attachmentView = (f) => ({
+var attachmentView2 = (f) => ({
   id: f.id,
   name: f.display_name ?? f.filename ?? `\u6587\u4EF6 ${f.id}`,
   url: f.url ?? null,
@@ -1552,7 +1844,7 @@ var submissionRecordView = (s) => ({
   submittedAt: s.submitted_at ?? null,
   body: s.body ?? null,
   url: s.url ?? null,
-  attachments: (s.attachments ?? []).map(attachmentView),
+  attachments: (s.attachments ?? []).map(attachmentView2),
   score: s.score ?? null,
   grade: s.grade ?? null,
   gradedAt: s.graded_at ?? null,
@@ -1592,12 +1884,12 @@ var CanvasClient = class {
       return res;
     }
   }
-  async get(path, params = {}) {
+  async get(path, params = {}, maxRows = Infinity) {
     const first2 = new URL(`/api/v1${path}`, this.base);
     for (const [k, v] of Object.entries(params)) {
       for (const one of Array.isArray(v) ? v : [v]) first2.searchParams.append(k, one);
     }
-    first2.searchParams.set("per_page", "100");
+    first2.searchParams.set("per_page", String(Math.min(100, maxRows)));
     let url = first2;
     const seen = /* @__PURE__ */ new Set();
     const rows = [];
@@ -1618,9 +1910,9 @@ var CanvasClient = class {
       if (!Array.isArray(data)) throw new Error("eLearning \u8FD4\u56DE\u7684\u6570\u636E\u683C\u5F0F\u4E0D\u6B63\u786E");
       rows.push(...data);
       const next = res.headers.get("link")?.split(/,(?=\s*<)/).find((part) => /;\s*rel="?next"?(?:\s*;|\s*$)/i.test(part))?.match(/<([^>]+)>/)?.[1];
-      url = next ? new URL(next, url) : void 0;
+      url = next && rows.length < maxRows ? new URL(next, url) : void 0;
     }
-    return rows;
+    return rows.length > maxRows ? rows.slice(0, maxRows) : rows;
   }
   /** 返回单个对象的接口（例如某个文件的信息） */
   async getObject(path, params = {}) {
@@ -1755,7 +2047,7 @@ var CanvasClient = class {
           author: c.author_name ?? null,
           text: c.comment ?? null,
           createdAt: c.created_at ?? null,
-          attachments: (c.attachments ?? []).map(attachmentView)
+          attachments: (c.attachments ?? []).map(attachmentView2)
         })) ?? null,
         history: s.submission_history?.map(submissionRecordView) ?? null
       }
@@ -1782,6 +2074,46 @@ var CanvasClient = class {
     checkCourseId(courseId);
     checkPageKey(page);
     return readContent(async () => pageDetailView(await this.getObject(`/courses/${courseId}/pages/${encodeURIComponent(page)}`), courseId));
+  }
+  /** 本人以学生身份加入的各门课的总评（一次请求）；老师没有开放总评时分数为 null。 */
+  async listGradeTotals() {
+    return readGradeData(async () => parseEnrollmentGrades(await this.get("/users/self/enrollments", { "type[]": ["StudentEnrollment"], "state[]": ["active"] })));
+  }
+  /** 一门课的作业组（权重、去掉最低分规则）和每项作业的本人得分、班级统计。 */
+  async getCourseGrades(courseId) {
+    checkCourseId(courseId);
+    return readGradeData(async () => {
+      const [course, groups] = await Promise.all([
+        this.getObject(`/courses/${courseId}`),
+        this.get(`/courses/${courseId}/assignment_groups`, { "include[]": ["assignments", "submission", "score_statistics"] })
+      ]);
+      const weighted = course.apply_assignment_group_weights;
+      return { weighted: typeof weighted === "boolean" ? weighted : null, groups: parseGradeGroups(groups) };
+    });
+  }
+  /** 课程讨论区的主题（不含公告）；只读列表，不改变已读状态。 */
+  async listDiscussions(courseId) {
+    checkCourseId(courseId);
+    return readDiscussions(async () => parseTopics(await this.get(`/courses/${courseId}/discussion_topics`)));
+  }
+  /** 一个讨论主题和全部回帖（树状）。读取 view 接口不会把回帖标为已读。 */
+  async getDiscussion(courseId, topicId) {
+    checkCourseId(courseId);
+    checkTopicId(topicId);
+    const path = `/courses/${courseId}/discussion_topics/${topicId}`;
+    return readDiscussions(async () => {
+      const [topic, view] = await Promise.all([this.getObject(path), this.getObject(`${path}/view`)]);
+      return discussionView(topic, view);
+    });
+  }
+  /** 站内信会话列表，新的在前；列表接口不改变已读状态。 */
+  async listConversations(scope = "inbox", limit = 30) {
+    return readInbox(async () => parseConversations(await this.get("/conversations", { scope }, limit)));
+  }
+  /** 一个会话的全部消息。Canvas 默认会把会话标为已读，必须显式关闭。 */
+  async getConversation(conversationId) {
+    checkConversationId(conversationId);
+    return readInbox(async () => conversationDetailView(await this.getObject(`/conversations/${conversationId}`, { auto_mark_as_read: ["false"] }), conversationId));
   }
   /**
    * 课程文件。先读「文件」栏目；老师把「文件」栏目隐藏时（没有权限），改从「单元」里找文件条目。
@@ -2011,7 +2343,7 @@ var CanvasSubmitClient = class {
 // src/services/grades.ts
 import { load as load5 } from "cheerio";
 var JW2 = "https://fdjwgl.fudan.edu.cn/student/for-std";
-var num2 = (v) => typeof v === "number" ? v : typeof v === "string" && v.trim() && Number.isFinite(Number(v)) ? Number(v) : void 0;
+var num4 = (v) => typeof v === "number" ? v : typeof v === "string" && v.trim() && Number.isFinite(Number(v)) ? Number(v) : void 0;
 function parseGradeSheet(body3, semesterNames) {
   let data;
   try {
@@ -2031,9 +2363,9 @@ function parseGradeSheet(body3, semesterNames) {
       return [{
         course,
         code: typeof r.lessonCode === "string" && r.lessonCode || typeof r.courseCode === "string" && r.courseCode || void 0,
-        credits: num2(r.credits) ?? num2(r.credit),
+        credits: num4(r.credits) ?? num4(r.credit),
         grade: grade || "\u672A\u51FA",
-        gp: num2(r.gp),
+        gp: num4(r.gp),
         type: typeof r.courseModuleTypeName === "string" && r.courseModuleTypeName || typeof r.courseType === "string" && r.courseType || void 0,
         semester: name
       }];
@@ -2058,9 +2390,9 @@ function parseGpaRank(body3, studentNumber) {
   const me = studentNumber ? rows.find((r) => String(r.code ?? "") === studentNumber) : void 0;
   if (!me) return { total: rows.length };
   return {
-    gpa: num2(me.gpa),
-    credits: num2(me.credit),
-    ranking: num2(me.ranking),
+    gpa: num4(me.gpa),
+    credits: num4(me.credit),
+    ranking: num4(me.ranking),
     total: rows.length,
     major: typeof me.major === "string" ? me.major : void 0,
     department: typeof me.department === "string" ? me.department : void 0,
@@ -2273,14 +2605,14 @@ async function readSyllabus(reader, lessonId, maxChars = 3e4) {
     const cap = (t) => t.length > maxChars ? `${t.slice(0, maxChars)}\u2026\uFF08\u5DF2\u622A\u65AD\uFF09` : t;
     return { lessonId, ...notice ? { notice } : {}, available: structured.sections.length > 0 || structured.assessment.items.length > 0, ...structured, sections: structured.sections.map((x) => ({ ...x, text: cap(x.text) })) };
   }
-  let text3 = htmlToText(page.text);
-  if (text3.length < 120 && reader.render) text3 = htmlToText(await reader.render(url, (h) => htmlToText(h).length >= 200));
+  let text5 = htmlToText(page.text);
+  if (text5.length < 120 && reader.render) text5 = htmlToText(await reader.render(url, (h) => htmlToText(h).length >= 200));
   return {
     lessonId,
     ...notice ? { notice } : {},
-    available: text3.length >= 40,
-    ...text3.length > maxChars ? { truncated: true } : {},
-    text: text3.slice(0, maxChars)
+    available: text5.length >= 40,
+    ...text5.length > maxChars ? { truncated: true } : {},
+    text: text5.slice(0, maxChars)
   };
 }
 function parseJsLiteral(src, start) {
@@ -2453,7 +2785,7 @@ var LibrarySearch = class {
 var OPAC = "https://opac.fudan.edu.cn/";
 var LIB_API = "https://fdulspgw.fudan.edu.cn/alsp/open-api/elib5";
 var str = (v) => typeof v === "string" && v.trim() ? v.trim() : void 0;
-var num3 = (v) => typeof v === "number" && Number.isFinite(v) ? v : typeof v === "string" && v.trim() && Number.isFinite(Number(v)) ? Number(v) : void 0;
+var num5 = (v) => typeof v === "number" && Number.isFinite(v) ? v : typeof v === "string" && v.trim() && Number.isFinite(Number(v)) ? Number(v) : void 0;
 function libDate(v) {
   const s = str(v);
   if (!s) return void 0;
@@ -2494,8 +2826,8 @@ function parseCurrentLoans(json, today) {
       ...str(item.permanentLocationName ?? item.temporaryLocationName) ? { location: str(item.permanentLocationName ?? item.temporaryLocationName) } : {},
       loanDate: libDate(log.loanDate) ?? libDate(item.checkoutDate),
       dueDate,
-      renewed: num3(log.renewalCount) ?? num3(item.renewCount) ?? 0,
-      ...num3(policy.renewalCount) !== void 0 ? { renewMax: num3(policy.renewalCount) } : {},
+      renewed: num5(log.renewalCount) ?? num5(item.renewCount) ?? 0,
+      ...num5(policy.renewalCount) !== void 0 ? { renewMax: num5(policy.renewalCount) } : {},
       overdue: daysLeft !== void 0 && daysLeft < 0,
       ...daysLeft !== void 0 ? { daysLeft } : {}
     };
@@ -2505,7 +2837,7 @@ function parseHistory(json) {
   const d = json?.data ?? {};
   const list2 = d.list ?? [];
   return {
-    total: num3(d.total) ?? list2.length,
+    total: num5(d.total) ?? list2.length,
     loans: list2.map((row) => {
       const inst = row.catalogueInstance ?? {};
       return {
@@ -2521,10 +2853,10 @@ function parseHistory(json) {
 function parseReader(json) {
   const d = json?.data ?? {};
   return {
-    canBorrow: num3(d.canLoanTotal),
-    overdue: num3(d.overdueTotal),
-    fees: num3(d.fees),
-    holds: num3(d.currentRequestCount),
+    canBorrow: num5(d.canLoanTotal),
+    overdue: num5(d.overdueTotal),
+    fees: num5(d.fees),
+    holds: num5(d.currentRequestCount),
     ...libDate(d.expirationDate) ? { cardExpires: libDate(d.expirationDate) } : {}
   };
 }
@@ -2722,16 +3054,16 @@ function validDate(y, m, d) {
   const iso = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
   return (/* @__PURE__ */ new Date(`${iso}T00:00:00Z`)).toISOString().startsWith(iso) ? iso : void 0;
 }
-function findDate(text3) {
+function findDate(text5) {
   const full = /* @__PURE__ */ new Set();
-  for (const m of text3.matchAll(/(?<!\d)(20\d{2})\s*[-/.年]\s*(\d{1,2})\s*[-/.月]\s*(\d{1,2})\s*日?(?!\d)/g)) {
+  for (const m of text5.matchAll(/(?<!\d)(20\d{2})\s*[-/.年]\s*(\d{1,2})\s*[-/.月]\s*(\d{1,2})\s*日?(?!\d)/g)) {
     const d = validDate(+m[1], +m[2], +m[3]);
     if (d) full.add(d);
   }
   if (full.size === 1) return [...full][0];
   if (full.size > 1) return null;
-  const ym = text3.match(/(?<!\d)(20\d{2})\s*[-/.年]\s*(\d{1,2})(?![\d-/.])/);
-  const rest = ym ? text3.replace(ym[0], " ") : "";
+  const ym = text5.match(/(?<!\d)(20\d{2})\s*[-/.年]\s*(\d{1,2})(?![\d-/.])/);
+  const rest = ym ? text5.replace(ym[0], " ") : "";
   const day = ym ? rest.match(/(?<!\d)(\d{1,2})(?!\d)/) : null;
   if (ym && day) return validDate(+ym[1], +ym[2], +day[1]) ?? void 0;
   return void 0;
@@ -2795,8 +3127,8 @@ function rowDate($, row, title) {
 }
 function rowTitle($, a) {
   const candidates = a.find('.title, .tit, [class*="tt"], h3, h4, p, span').map((_i, x) => cleanText($(x).text())).get().filter((t) => t.length >= 6 && !DATE_ONLY.test(t));
-  const text3 = candidates[0] ?? cleanText(a.text());
-  return text3.replace(/(?<!\d)20\d{2}\s*[-/.年]\s*\d{1,2}\s*[-/.月]\s*\d{1,2}\s*日?/g, "");
+  const text5 = candidates[0] ?? cleanText(a.text());
+  return text5.replace(/(?<!\d)20\d{2}\s*[-/.年]\s*\d{1,2}\s*[-/.月]\s*\d{1,2}\s*日?/g, "");
 }
 var BODY = [".wp_articlecontent", ".v_news_content", "#vsb_content", ".article-content", ".article_content", ".content-con", ".TRS_Editor", ".entry-content", "article", ".article", ".content", "#content"];
 function parseNoticeDetail(html, pageUrl) {
@@ -2846,11 +3178,11 @@ function parseNoticeDetail(html, pageUrl) {
   body3.find("p, div, li, tr, h1, h2, h3, h4").each((_i, x) => {
     $(x).append("\n");
   });
-  const text3 = body3.text().replace(/[ \t 　]+/g, " ").replace(/ *\n */g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  const text5 = body3.text().replace(/[ \t 　]+/g, " ").replace(/ *\n */g, "\n").replace(/\n{3,}/g, "\n\n").trim();
   const meta = cleanText($(".arti_metas, .article-info, .info, .time, .date, .news_meta, .arti-metas, .view-info").first().text());
   const labeled = cleanText($("body").text()).match(/(?:发布(?:日期|时间)|日期|时间)\s*[:：]\s*(20\d{2}\s*[-/.年]\s*\d{1,2}\s*[-/.月]\s*\d{1,2})/)?.[1];
   const title = cleanText($(".arti_title, .article-title, .news_title, .view-title, .art-tit h3, h1").first().text()) || cleanText($("title").text()).replace(/\s*[-|_].*$/, "");
-  return { title: title || void 0, date: findDate(meta) || (labeled ? findDate(labeled) : void 0) || void 0, text: text3, attachments };
+  return { title: title || void 0, date: findDate(meta) || (labeled ? findDate(labeled) : void 0) || void 0, text: text5, attachments };
 }
 
 // src/services/notice-sources.ts
@@ -2905,9 +3237,9 @@ function aliases(name) {
   return [name, short].filter((s) => s.length >= 2);
 }
 function ownSchoolSources(school2) {
-  const text3 = school2?.trim();
-  if (!text3) return [];
-  return NOTICE_SOURCES.filter((s) => s.group === "\u9662\u7CFB" && aliases(s.name).some((a) => text3.includes(a) || a.includes(text3)));
+  const text5 = school2?.trim();
+  if (!text5) return [];
+  return NOTICE_SOURCES.filter((s) => s.group === "\u9662\u7CFB" && aliases(s.name).some((a) => text5.includes(a) || a.includes(text5)));
 }
 function findNoticeSource(query) {
   const q = query.trim();
@@ -3657,10 +3989,10 @@ function parseConsumePage(body3) {
     const type = rest[1] ?? "";
     const merchant = rest[2] ?? "";
     const rawAmount = (rest[3] ?? "").replace(/[,，¥￥元\s]/g, "");
-    const num4 = /[-+]?\d+(?:\.\d+)?/.exec(rawAmount)?.[0];
-    if (num4 === void 0) return;
-    const value = Math.abs(Number(num4));
-    const signed = /^-/.test(num4) ? -value : /^\+/.test(num4) ? value : INCOME.test(type) ? value : -value;
+    const num6 = /[-+]?\d+(?:\.\d+)?/.exec(rawAmount)?.[0];
+    if (num6 === void 0) return;
+    const value = Math.abs(Number(num6));
+    const signed = /^-/.test(num6) ? -value : /^\+/.test(num6) ? value : INCOME.test(type) ? value : -value;
     records.push({ time: shanghaiIso(y, mo, d, h, mi, sec), type, merchant, amount: Math.round(signed * 100) / 100 });
   });
   return { records, pages: pages ? Number(pages) : void 0 };
@@ -3848,22 +4180,22 @@ function occupant($, td) {
   const tags = td.find("span.tag").map((_, el) => $(el).text().trim()).get().filter(Boolean);
   const copy = td.clone();
   copy.find("span.tag").remove();
-  const text3 = copy.text().replace(/\s+/g, " ").trim();
-  if (!text3 && !tags.length) return null;
-  const m = /^([A-Z]{2,}[A-Z0-9.]*\d[\w.]*)?\s*\[(.+?)\]\s*(?:\(([^)]*)\))?\s*(?:\{(\d+)人\})?/.exec(text3);
-  const borrow = tags.includes("\u4E34\u501F") || /临借/.test(text3);
+  const text5 = copy.text().replace(/\s+/g, " ").trim();
+  if (!text5 && !tags.length) return null;
+  const m = /^([A-Z]{2,}[A-Z0-9.]*\d[\w.]*)?\s*\[(.+?)\]\s*(?:\(([^)]*)\))?\s*(?:\{(\d+)人\})?/.exec(text5);
+  const borrow = tags.includes("\u4E34\u501F") || /临借/.test(text5);
   if (m && (m[1] || m[2]) && !borrow) {
     return {
       kind: "course",
       tags,
-      text: text3,
+      text: text5,
       ...m[1] ? { code: m[1] } : {},
       name: m[2],
       ...m[3] ? { teacher: m[3] } : {},
       ...m[4] ? { people: Number(m[4]) } : {}
     };
   }
-  return { kind: borrow ? "borrow" : "other", tags, text: text3, ...borrow ? { name: text3.replace(/^临借\s*/, "") } : {} };
+  return { kind: borrow ? "borrow" : "other", tags, text: text5, ...borrow ? { name: text5.replace(/^临借\s*/, "") } : {} };
 }
 function parseDayPage(html) {
   const $ = load9(html);
@@ -4078,9 +4410,9 @@ async function describeCall(r, opts = {}) {
     return null;
   }
   if (/\.(js|css|png|jpe?g|gif|svg|woff2?|ico|map)$/i.test(u.pathname) || /(^|\.)(mon-mp|hm\.baidu|google-analytics|cnzz)\b/i.test(u.hostname)) return null;
-  const text3 = await r.body().catch(() => "");
-  let response = `${r.contentType.split(";")[0] || "\u672A\u77E5\u7C7B\u578B"}\uFF08${text3.length} \u5B57\u8282\uFF09`;
-  const trimmed = text3.trim();
+  const text5 = await r.body().catch(() => "");
+  let response = `${r.contentType.split(";")[0] || "\u672A\u77E5\u7C7B\u578B"}\uFF08${text5.length} \u5B57\u8282\uFF09`;
+  const trimmed = text5.trim();
   if (/json/.test(r.contentType) || /^[[{]/.test(trimmed)) {
     try {
       response = shapeOf(JSON.parse(trimmed));
@@ -4123,14 +4455,14 @@ function op(o) {
 }
 var FLAGS = /* @__PURE__ */ new WeakSet();
 var flag = (description) => {
-  const schema = z3.preprocess((v) => v === "true" ? true : v === "false" ? false : v, z3.boolean()).optional().describe(description);
+  const schema = z5.preprocess((v) => v === "true" ? true : v === "false" ? false : v, z5.boolean()).optional().describe(description);
   FLAGS.add(schema);
   return schema;
 };
-var int2 = (description, min = 1, max = 1e3) => z3.preprocess(
+var int2 = (description, min = 1, max = 1e3) => z5.preprocess(
   // 命令行里 --days 后面忘了写数字时会变成 true：不能悄悄当成 1
   (v) => typeof v === "boolean" ? Number.NaN : v === "" ? void 0 : v,
-  z3.coerce.number({ error: "\u8981\u5199\u4E00\u4E2A\u6570\u5B57" }).int("\u8981\u5199\u6574\u6570").min(min).max(max)
+  z5.coerce.number({ error: "\u8981\u5199\u4E00\u4E2A\u6570\u5B57" }).int("\u8981\u5199\u6574\u6570").min(min).max(max)
 ).optional().describe(description);
 var DAY3 = 864e5;
 var shanghaiDate = (iso) => iso ? new Date(iso).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false }) : void 0;
@@ -4436,7 +4768,7 @@ var OPS = [
     params: {
       webvpn: flag("\u987A\u4FBF\u5EFA\u7ACB WebVPN \u4F1A\u8BDD\uFF08\u6821\u5916\u8BBF\u95EE\u6811\u6D1E\u9700\u8981\uFF09"),
       force: flag("\u4E22\u5F03\u5DF2\u6709\u767B\u5F55\u72B6\u6001\uFF0C\u91CD\u65B0\u767B\u5F55"),
-      url: z3.string().url().optional().describe("\u6253\u5F00\u8FD9\u4E2A\u9875\u9762\u5B8C\u6210\u767B\u5F55\u6216\u4E8C\u6B21\u9A8C\u8BC1\uFF08\u5982\u67D0\u4E9B\u9875\u9762\u8981\u6C42\u5FAE\u4FE1\u626B\u7801\uFF09\uFF0C\u56DE\u5230\u8FD9\u4E2A\u9875\u9762\u540E\u7A97\u53E3\u81EA\u52A8\u5173\u95ED")
+      url: z5.string().url().optional().describe("\u6253\u5F00\u8FD9\u4E2A\u9875\u9762\u5B8C\u6210\u767B\u5F55\u6216\u4E8C\u6B21\u9A8C\u8BC1\uFF08\u5982\u67D0\u4E9B\u9875\u9762\u8981\u6C42\u5FAE\u4FE1\u626B\u7801\uFF09\uFF0C\u56DE\u5230\u8FD9\u4E2A\u9875\u9762\u540E\u7A97\u53E3\u81EA\u52A8\u5173\u95ED")
     },
     examples: ["fdu login", "fdu login --webvpn", "fdu login --url https://my.fudan.edu.cn/simple_list/stqk"],
     async run(ctx, a) {
@@ -4489,7 +4821,7 @@ var OPS = [
     mcp: false,
     sensitive: true,
     cache: false,
-    params: { out: z3.string().optional().describe("\u5199\u5230\u8FD9\u4E2A\u6587\u4EF6\u91CC\uFF08\u6743\u9650 600\uFF09\uFF0C\u4E0D\u5728\u5C4F\u5E55\u4E0A\u663E\u793A") },
+    params: { out: z5.string().optional().describe("\u5199\u5230\u8FD9\u4E2A\u6587\u4EF6\u91CC\uFF08\u6743\u9650 600\uFF09\uFF0C\u4E0D\u5728\u5C4F\u5E55\u4E0A\u663E\u793A") },
     examples: ["fdu auth export", "fdu auth export --out fdu-session.txt"],
     async run(ctx, a) {
       const files = Object.fromEntries(TRANSFER_FILES.flatMap((name) => {
@@ -4516,16 +4848,16 @@ var OPS = [
     login: "none",
     effect: "auth",
     mcp: false,
-    params: { file: z3.string().optional().describe("\u4ECE\u8FD9\u4E2A\u6587\u4EF6\u8BFB\uFF08fdu auth export --out \u5199\u7684\uFF09") },
+    params: { file: z5.string().optional().describe("\u4ECE\u8FD9\u4E2A\u6587\u4EF6\u8BFB\uFF08fdu auth export --out \u5199\u7684\uFF09") },
     examples: ["fdu auth import", "fdu auth import --file fdu-session.txt", "cat fdu-session.txt | fdu auth import"],
     async run(ctx, a) {
-      let text3;
-      if (a.file) text3 = readFileSync2(resolve(ctx.cwd, a.file), "utf8");
-      else if (!process.stdin.isTTY) text3 = await readStdin();
-      else text3 = await needPrompt(ctx)("\u7C98\u8D34 fdu auth export \u5BFC\u51FA\u7684\u5185\u5BB9\uFF08\u4E0D\u4F1A\u663E\u793A\uFF09\uFF0C\u7136\u540E\u56DE\u8F66\uFF1A", { hidden: true });
+      let text5;
+      if (a.file) text5 = readFileSync2(resolve(ctx.cwd, a.file), "utf8");
+      else if (!process.stdin.isTTY) text5 = await readStdin();
+      else text5 = await needPrompt(ctx)("\u7C98\u8D34 fdu auth export \u5BFC\u51FA\u7684\u5185\u5BB9\uFF08\u4E0D\u4F1A\u663E\u793A\uFF09\uFF0C\u7136\u540E\u56DE\u8F66\uFF1A", { hidden: true });
       let bundle;
       try {
-        bundle = unpackSession(text3);
+        bundle = unpackSession(text5);
       } catch (e) {
         throw new FduError("BAD_ARGS", e.message);
       }
@@ -4612,11 +4944,11 @@ var OPS = [
     mcp: false,
     cache: false,
     params: {
-      url: z3.string().url().describe("\u4ECE\u54EA\u4E2A\u9875\u9762\u5F00\u59CB\uFF0C\u5982 https://fdjwgl.fudan.edu.cn/student/home"),
-      out: z3.string().optional().describe("\u7ED3\u679C\u4FDD\u5B58\u5230\u54EA\u91CC\uFF0C\u9ED8\u8BA4\u5F53\u524D\u76EE\u5F55\u7684 fdu-capture-\u65F6\u95F4.json"),
+      url: z5.string().url().describe("\u4ECE\u54EA\u4E2A\u9875\u9762\u5F00\u59CB\uFF0C\u5982 https://fdjwgl.fudan.edu.cn/student/home"),
+      out: z5.string().optional().describe("\u7ED3\u679C\u4FDD\u5B58\u5230\u54EA\u91CC\uFF0C\u9ED8\u8BA4\u5F53\u524D\u76EE\u5F55\u7684 fdu-capture-\u65F6\u95F4.json"),
       minutes: int2("\u6700\u591A\u5F55\u591A\u4E45\uFF08\u5206\u949F\uFF09\uFF0C\u9ED8\u8BA4 10", 1, 60),
       keepQuery: flag("\u4FDD\u7559\u67E5\u8BE2\u53C2\u6570\u7684\u503C\uFF08\u5982\u7FFB\u9875\u53C2\u6570\u7684\u683C\u5F0F\uFF1B\u4EE4\u724C\u548C\u957F\u6570\u5B57\u4F1A\u906E\u6389\uFF0C\u53D1\u51FA\u524D\u8BF7\u81EA\u5DF1\u770B\u4E00\u904D\uFF09"),
-      html: z3.string().min(1).optional().describe("\u53E6\u5916\u4FDD\u5B58\u5730\u5740\u91CC\u5305\u542B\u8FD9\u6BB5\u6587\u5B57\u7684\u7F51\u9875\u7684\u539F\u59CB HTML\uFF08\u5982 day.asp\uFF09\uFF0CIP\u3001\u4EE4\u724C\u3001\u957F\u6570\u5B57\u4F1A\u906E\u6389")
+      html: z5.string().min(1).optional().describe("\u53E6\u5916\u4FDD\u5B58\u5730\u5740\u91CC\u5305\u542B\u8FD9\u6BB5\u6587\u5B57\u7684\u7F51\u9875\u7684\u539F\u59CB HTML\uFF08\u5982 day.asp\uFF09\uFF0CIP\u3001\u4EE4\u724C\u3001\u957F\u6570\u5B57\u4F1A\u906E\u6389")
     },
     examples: ["fdu dev capture --url https://fdjwgl.fudan.edu.cn/student/home"],
     async run(ctx, a) {
@@ -4667,7 +4999,7 @@ var OPS = [
     summary: "\u4ECA\u5929\u7684\u6982\u51B5\uFF1A\u4ECA\u5929\u7684\u8BFE\uFF08\u6309\u6559\u5B66\u5468\u548C\u653E\u5047\u5B89\u6392\u7B5B\u597D\uFF09\u30013 \u5929\u5185\u8981\u4EA4\u8FD8\u6CA1\u4EA4\u7684\u4F5C\u4E1A\u30017 \u5929\u5185\u7684\u8003\u8BD5\u3001\u8FC7\u4E86\u622A\u6B62\u8FD8\u6CA1\u4EA4\u7684\u4F5C\u4E1A\u3002\u67D0\u4E00\u7C7B\u8BFB\u4E0D\u5230\u65F6\u5176\u4ED6\u7167\u5E38\u8FD4\u56DE\uFF0C\u8BFB\u4E0D\u5230\u7684\u5199\u5728 errors \u91CC\u3002",
     login: "uis",
     effect: "read",
-    params: { date: z3.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("\u65E5\u671F YYYY-MM-DD\uFF0C\u9ED8\u8BA4\u4ECA\u5929") },
+    params: { date: z5.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("\u65E5\u671F YYYY-MM-DD\uFF0C\u9ED8\u8BA4\u4ECA\u5929") },
     examples: ["fdu today", "fdu today --date 2026-11-09"],
     async run(ctx, a) {
       const r = todayRange(ctx.now(), a.date);
@@ -4679,7 +5011,7 @@ var OPS = [
     summary: "\u8FD9\u4E00\u5468\uFF08\u6309\u6821\u5386\u4ECE\u5468\u65E5\u5230\u5468\u516D\uFF09\u6BCF\u5929\u7684\u8BFE\u3001\u672C\u5468\u8981\u4EA4\u7684\u4F5C\u4E1A\u3001\u672C\u5468\u7684\u8003\u8BD5\uFF0C\u4EE5\u53CA\u7B2C\u51E0\u6559\u5B66\u5468\u3002",
     login: "uis",
     effect: "read",
-    params: { date: z3.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("\u8FD9\u4E00\u5468\u91CC\u7684\u4EFB\u610F\u4E00\u5929\uFF0C\u9ED8\u8BA4\u4ECA\u5929") },
+    params: { date: z5.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("\u8FD9\u4E00\u5468\u91CC\u7684\u4EFB\u610F\u4E00\u5929\uFF0C\u9ED8\u8BA4\u4ECA\u5929") },
     examples: ["fdu week", "fdu week --date 2026-11-16"],
     async run(ctx, a) {
       const r = weekRange(ctx.now(), a.date);
@@ -4693,8 +5025,8 @@ var OPS = [
     effect: "local-write",
     cache: false,
     params: {
-      out: z3.string().optional().describe("\u4FDD\u5B58\u5230\u54EA\u91CC\uFF0C\u9ED8\u8BA4\u5F53\u524D\u76EE\u5F55\u7684 fudan.ics"),
-      include: z3.string().regex(/^(timetable|exams|assignments)(,(timetable|exams|assignments))*$/).optional().describe("\u5BFC\u51FA\u54EA\u4E9B\uFF0C\u9017\u53F7\u5206\u9694\uFF1Atimetable,exams,assignments\uFF08\u9ED8\u8BA4\u5168\u90E8\uFF09"),
+      out: z5.string().optional().describe("\u4FDD\u5B58\u5230\u54EA\u91CC\uFF0C\u9ED8\u8BA4\u5F53\u524D\u76EE\u5F55\u7684 fudan.ics"),
+      include: z5.string().regex(/^(timetable|exams|assignments)(,(timetable|exams|assignments))*$/).optional().describe("\u5BFC\u51FA\u54EA\u4E9B\uFF0C\u9017\u53F7\u5206\u9694\uFF1Atimetable,exams,assignments\uFF08\u9ED8\u8BA4\u5168\u90E8\uFF09"),
       overwrite: flag("\u6587\u4EF6\u5DF2\u5B58\u5728\u65F6\u8986\u76D6\uFF08\u9ED8\u8BA4\u53E6\u5B58\u4E3A\u65B0\u6587\u4EF6\u540D\uFF09"),
       alarms: flag("\u8003\u8BD5\u548C\u4F5C\u4E1A\u622A\u6B62\u524D\u4E00\u5929\u63D0\u9192\uFF08\u9ED8\u8BA4\u5F00\uFF09")
     },
@@ -4758,11 +5090,11 @@ var OPS = [
     sensitive: true,
     cache: false,
     params: {
-      course: z3.string().min(1).describe("\u8BFE\u7A0B id \u6216\u552F\u4E00\u540D\u79F0\u5173\u952E\u8BCD"),
-      assignment: z3.string().regex(/^[1-9]\d*$/).describe("\u4F5C\u4E1A id\uFF0C\u6765\u81EA elearning assignments"),
-      file: z3.string().min(1).optional().describe("\u672C\u5730\u6587\u4EF6\u8DEF\u5F84\uFF08\u5355\u4E2A\u6700\u5927 200 MB\uFF09\uFF1BMCP \u53EA\u5141\u8BB8\u5DE5\u4F5C\u76EE\u5F55\u5185\u7684\u6587\u4EF6"),
-      text: z3.string().min(1).optional().describe("\u63D0\u4EA4\u6587\u672C\uFF08Canvas \u6309 HTML \u5904\u7406\uFF09\uFF0C\u4E0E file / url \u4E09\u9009\u4E00"),
-      url: z3.string().min(1).optional().describe("\u63D0\u4EA4\u7684 HTTP / HTTPS \u7F51\u5740\uFF0C\u4E0E file / text \u4E09\u9009\u4E00"),
+      course: z5.string().min(1).describe("\u8BFE\u7A0B id \u6216\u552F\u4E00\u540D\u79F0\u5173\u952E\u8BCD"),
+      assignment: z5.string().regex(/^[1-9]\d*$/).describe("\u4F5C\u4E1A id\uFF0C\u6765\u81EA elearning assignments"),
+      file: z5.string().min(1).optional().describe("\u672C\u5730\u6587\u4EF6\u8DEF\u5F84\uFF08\u5355\u4E2A\u6700\u5927 200 MB\uFF09\uFF1BMCP \u53EA\u5141\u8BB8\u5DE5\u4F5C\u76EE\u5F55\u5185\u7684\u6587\u4EF6"),
+      text: z5.string().min(1).optional().describe("\u63D0\u4EA4\u6587\u672C\uFF08Canvas \u6309 HTML \u5904\u7406\uFF09\uFF0C\u4E0E file / url \u4E09\u9009\u4E00"),
+      url: z5.string().min(1).optional().describe("\u63D0\u4EA4\u7684 HTTP / HTTPS \u7F51\u5740\uFF0C\u4E0E file / text \u4E09\u9009\u4E00"),
       dryRun: flag("\u4EC5\u68C0\u67E5\u4F5C\u4E1A\u548C\u6587\u4EF6\u5E76\u9884\u89C8\uFF0C\u4E0D\u4E0A\u4F20\u3001\u4E0D\u63D0\u4EA4"),
       resubmit: flag("\u660E\u786E\u5141\u8BB8\u91CD\u65B0\u63D0\u4EA4\u5DF2\u6709\u63D0\u4EA4\u7684\u4F5C\u4E1A\uFF08\u5360\u7528\u63D0\u4EA4\u6B21\u6570\uFF09")
     },
@@ -4803,8 +5135,8 @@ var OPS = [
     effect: "read",
     sensitive: true,
     params: {
-      course: z3.string().min(1).optional().describe("\u8BFE\u7A0B id \u6216\u540D\u79F0\u5173\u952E\u8BCD\uFF1B\u67E5\u8BE2\u5355\u4EFD\u4F5C\u4E1A\u65F6\u5FC5\u987B\u552F\u4E00"),
-      assignment: z3.string().regex(/^[1-9]\d*$/).optional().describe("\u4F5C\u4E1A id\uFF1A\u67E5\u8BE2\u8BE5\u4F5C\u4E1A\u8BE6\u60C5\u53CA\u672C\u4EBA\u7684\u63D0\u4EA4\u548C\u53CD\u9988\uFF0C\u5FC5\u987B\u540C\u65F6\u4F20 course\uFF0C\u4E0D\u80FD\u4E0E pending \u540C\u7528\uFF1B\u4ECD\u8FD4\u56DE\u6570\u7EC4"),
+      course: z5.string().min(1).optional().describe("\u8BFE\u7A0B id \u6216\u540D\u79F0\u5173\u952E\u8BCD\uFF1B\u67E5\u8BE2\u5355\u4EFD\u4F5C\u4E1A\u65F6\u5FC5\u987B\u552F\u4E00"),
+      assignment: z5.string().regex(/^[1-9]\d*$/).optional().describe("\u4F5C\u4E1A id\uFF1A\u67E5\u8BE2\u8BE5\u4F5C\u4E1A\u8BE6\u60C5\u53CA\u672C\u4EBA\u7684\u63D0\u4EA4\u548C\u53CD\u9988\uFF0C\u5FC5\u987B\u540C\u65F6\u4F20 course\uFF0C\u4E0D\u80FD\u4E0E pending \u540C\u7528\uFF1B\u4ECD\u8FD4\u56DE\u6570\u7EC4"),
       pending: flag("\u53EA\u770B\u8FD8\u6CA1\u4EA4\u7684\uFF0C\u4E0D\u80FD\u4E0E assignment \u540C\u7528")
     },
     examples: ["fdu elearning assignments --course \u6570\u636E\u7ED3\u6784", "fdu elearning assignments --pending", "fdu elearning assignments --course \u6570\u636E\u7ED3\u6784 --assignment 123"],
@@ -4843,7 +5175,7 @@ var OPS = [
     summary: "\u8BFE\u7A0B\u516C\u544A\uFF08\u9ED8\u8BA4\u6700\u8FD1 14 \u5929\uFF09\u3002",
     login: "uis",
     effect: "read",
-    params: { course: z3.string().optional().describe("\u8BFE\u7A0B id \u6216\u540D\u79F0\u5173\u952E\u8BCD"), days: int2("\u6700\u8FD1\u51E0\u5929\uFF0C\u9ED8\u8BA4 14", 1, 365) },
+    params: { course: z5.string().optional().describe("\u8BFE\u7A0B id \u6216\u540D\u79F0\u5173\u952E\u8BCD"), days: int2("\u6700\u8FD1\u51E0\u5929\uFF0C\u9ED8\u8BA4 14", 1, 365) },
     async run(ctx, a) {
       const courses = await resolveCourses(ctx, a.course);
       const since = new Date(ctx.now() - (a.days ?? 14) * DAY3).toISOString();
@@ -4857,7 +5189,7 @@ var OPS = [
     summary: "\u8BFE\u7A0B\u5355\u5143\u548C\u5B8C\u6574\u6761\u76EE\uFF1A\u9875\u9762\u3001\u6587\u4EF6\u3001\u4F5C\u4E1A\u3001\u6D4B\u9A8C\u548C\u5916\u90E8\u94FE\u63A5\uFF0C\u4EE5\u53CA\u987A\u5E8F\u3001\u7F29\u8FDB\u3001\u5F00\u653E\u9650\u5236\uFF1B\u53EA\u5217\u4FE1\u606F\uFF0C\u4E0D\u6807\u8BB0\u5B66\u4E60\u8FDB\u5EA6\u3002",
     login: "uis",
     effect: "read",
-    params: { course: z3.string().min(1).describe("\u8BFE\u7A0B id \u6216\u552F\u4E00\u540D\u79F0\u5173\u952E\u8BCD") },
+    params: { course: z5.string().min(1).describe("\u8BFE\u7A0B id \u6216\u552F\u4E00\u540D\u79F0\u5173\u952E\u8BCD") },
     examples: ["fdu elearning modules --course \u6570\u636E\u7ED3\u6784"],
     async run(ctx, a) {
       const course = await resolveCourse(ctx, a.course);
@@ -4870,9 +5202,9 @@ var OPS = [
     login: "uis",
     effect: "read",
     params: {
-      course: z3.string().min(1).describe("\u8BFE\u7A0B id \u6216\u552F\u4E00\u540D\u79F0\u5173\u952E\u8BCD"),
-      page: z3.string().min(1).max(300).optional().describe("\u9875\u9762\u6807\u8BC6\uFF1A\u6765\u81EA\u9875\u9762\u5217\u8868\u7684 url \u6216\u5355\u5143\u6761\u76EE\u7684 pageUrl\uFF1B\u6309\u6570\u5B57 id \u67E5\u65F6\u7528 page_id:123"),
-      search: z3.string().min(1).optional().describe("\u6309\u6807\u9898\u641C\u7D22\u9875\u9762\u5217\u8868\uFF1B\u4E0D\u80FD\u4E0E page \u540C\u7528")
+      course: z5.string().min(1).describe("\u8BFE\u7A0B id \u6216\u552F\u4E00\u540D\u79F0\u5173\u952E\u8BCD"),
+      page: z5.string().min(1).max(300).optional().describe("\u9875\u9762\u6807\u8BC6\uFF1A\u6765\u81EA\u9875\u9762\u5217\u8868\u7684 url \u6216\u5355\u5143\u6761\u76EE\u7684 pageUrl\uFF1B\u6309\u6570\u5B57 id \u67E5\u65F6\u7528 page_id:123"),
+      search: z5.string().min(1).optional().describe("\u6309\u6807\u9898\u641C\u7D22\u9875\u9762\u5217\u8868\uFF1B\u4E0D\u80FD\u4E0E page \u540C\u7528")
     },
     examples: ["fdu elearning pages --course \u6570\u636E\u7ED3\u6784", "fdu elearning pages --course \u6570\u636E\u7ED3\u6784 --page lab-guide"],
     async run(ctx, a) {
@@ -4883,11 +5215,70 @@ var OPS = [
     }
   }),
   op({
+    name: "elearning.grades",
+    summary: "\u5404\u95E8\u8BFE\u5728 eLearning \u4E0A\u7684\u5F53\u524D\u603B\u8BC4\uFF1B\u52A0 --course \u518D\u5217\u51FA\u8FD9\u95E8\u8BFE\u5404\u4F5C\u4E1A\u7EC4\u7684\u6743\u91CD\u548C\u6BCF\u9879\u4F5C\u4E1A\u7684\u5F97\u5206\u3001\u6EE1\u5206\u3001\u73ED\u7EA7\u7EDF\u8BA1\u3002\u5206\u6570\u4E3A null \u8868\u793A\u8001\u5E08\u6CA1\u5F00\u653E\u6216\u8FD8\u6CA1\u8BC4\u5206\uFF0C\u4E0D\u662F\u96F6\u5206\u3002\u8FD9\u662F eLearning \u4E0A\u7684\u5E73\u65F6\u6210\u7EE9\uFF0C\u6700\u7EC8\u6210\u7EE9\u770B jw grades\u3002",
+    login: "uis",
+    effect: "read",
+    sensitive: true,
+    params: { course: z5.string().min(1).optional().describe("\u8BFE\u7A0B id \u6216\u552F\u4E00\u540D\u79F0\u5173\u952E\u8BCD\uFF1A\u8FD4\u56DE\u8FD9\u95E8\u8BFE\u7684\u4F5C\u4E1A\u7EC4\u548C\u5404\u9879\u5F97\u5206\uFF1B\u4E0D\u4F20\u65F6\u53EA\u8FD4\u56DE\u5404\u95E8\u8BFE\u7684\u603B\u8BC4") },
+    examples: ["fdu elearning grades", "fdu elearning grades --course \u6570\u636E\u7ED3\u6784"],
+    async run(ctx, a) {
+      const client = elearning(ctx);
+      const courses = a.course ? [await resolveCourse(ctx, a.course)] : await resolveCourses(ctx);
+      const totals = await client.listGradeTotals();
+      const detail = a.course ? await client.getCourseGrades(courses[0].id) : void 0;
+      return courses.map((c) => ({ courseId: c.id, course: c.name, courseCode: c.courseCode, ...totals.get(c.id) ?? NO_TOTALS, ...detail }));
+    }
+  }),
+  op({
+    name: "elearning.discussions",
+    summary: "\u8BFE\u7A0B\u8BA8\u8BBA\u533A\uFF1A\u9ED8\u8BA4\u5217\u51FA\u4E3B\u9898\uFF08\u6807\u9898\u3001\u53D1\u5E16\u4EBA\u3001\u6B63\u6587\u3001\u56DE\u5E16\u6570\u3001\u672A\u8BFB\u6570\uFF09\uFF1B\u52A0 --topic \u8BFB\u53D6\u8FD9\u4E2A\u4E3B\u9898\u7684\u5168\u90E8\u56DE\u5E16\uFF08\u6811\u72B6\uFF09\u3002\u53EA\u8BFB\uFF0C\u4E0D\u6807\u5DF2\u8BFB\u3001\u4E0D\u53D1\u5E16\uFF1B\u516C\u544A\u7528 elearning announcements\u3002",
+    login: "uis",
+    effect: "read",
+    params: {
+      course: z5.string().min(1).describe("\u8BFE\u7A0B id \u6216\u552F\u4E00\u540D\u79F0\u5173\u952E\u8BCD"),
+      topic: z5.string().regex(/^[1-9]\d*$/).optional().describe("\u8BA8\u8BBA\u4E3B\u9898 id\uFF0C\u6765\u81EA\u4E3B\u9898\u5217\u8868")
+    },
+    examples: ["fdu elearning discussions --course \u6570\u636E\u7ED3\u6784", "fdu elearning discussions --course \u6570\u636E\u7ED3\u6784 --topic 123"],
+    async run(ctx, a) {
+      const course = await resolveCourse(ctx, a.course);
+      const client = elearning(ctx);
+      if (a.topic) {
+        const topic = await client.getDiscussion(course.id, a.topic);
+        return { courseId: course.id, course: course.name, topic: { ...topic, postedAtShanghai: shanghaiDate(topic.postedAt ?? void 0) } };
+      }
+      const topics = await client.listDiscussions(course.id);
+      return { courseId: course.id, course: course.name, topics: topics.map((t) => ({ ...t, postedAtShanghai: shanghaiDate(t.postedAt ?? void 0), lastReplyAtShanghai: shanghaiDate(t.lastReplyAt ?? void 0) })) };
+    }
+  }),
+  op({
+    name: "elearning.inbox",
+    summary: "eLearning \u7AD9\u5185\u4FE1\uFF08\u8001\u5E08\u3001\u52A9\u6559\u3001\u540C\u5B66\u53D1\u7684\u79C1\u4FE1\uFF09\uFF1A\u9ED8\u8BA4\u5217\u51FA\u6536\u4EF6\u7BB1\u91CC\u6700\u8FD1\u7684\u4F1A\u8BDD\uFF1B\u52A0 --conversation \u8BFB\u53D6\u8FD9\u4E2A\u4F1A\u8BDD\u7684\u5168\u90E8\u6D88\u606F\u548C\u9644\u4EF6\u4FE1\u606F\u3002\u53EA\u8BFB\uFF0C\u4E0D\u6807\u5DF2\u8BFB\u3001\u4E0D\u56DE\u590D\u3002",
+    login: "uis",
+    effect: "read",
+    sensitive: true,
+    params: {
+      scope: z5.enum(INBOX_SCOPES).optional().describe("\u770B\u54EA\u4E00\u7C7B\uFF1Ainbox \u6536\u4EF6\u7BB1\uFF08\u9ED8\u8BA4\uFF09\u3001unread \u672A\u8BFB\u3001starred \u661F\u6807\u3001sent \u5DF2\u53D1\u9001\u3001archived \u5DF2\u5F52\u6863\uFF1B\u4E0D\u80FD\u4E0E conversation \u540C\u7528"),
+      limit: int2("\u6700\u591A\u51E0\u4E2A\u4F1A\u8BDD\uFF0C\u9ED8\u8BA4 30", 1, 200),
+      conversation: z5.string().regex(/^[1-9]\d*$/).optional().describe("\u4F1A\u8BDD id\uFF0C\u6765\u81EA\u4F1A\u8BDD\u5217\u8868")
+    },
+    examples: ["fdu elearning inbox --scope unread", "fdu elearning inbox --conversation 123"],
+    async run(ctx, a) {
+      if (a.conversation) {
+        if (a.scope || a.limit) throw new FduError("BAD_ARGS", "--conversation \u4E0D\u80FD\u4E0E --scope\u3001--limit \u540C\u65F6\u4F7F\u7528\u3002", "\u8BFB\u53D6\u5355\u4E2A\u4F1A\u8BDD\u65F6\u53EA\u4F20 --conversation\u3002");
+        const c = await elearning(ctx).getConversation(a.conversation);
+        return { conversation: { ...c, lastMessageAtShanghai: shanghaiDate(c.lastMessageAt ?? void 0) } };
+      }
+      const list2 = await elearning(ctx).listConversations(a.scope, a.limit);
+      return { scope: a.scope ?? "inbox", conversations: list2.map((c) => ({ ...c, lastMessageAtShanghai: shanghaiDate(c.lastMessageAt ?? void 0) })) };
+    }
+  }),
+  op({
     name: "elearning.files",
     summary: "\u67D0\u95E8\u8BFE\u7684\u8BFE\u4EF6\u548C\u6587\u4EF6\uFF08id\u3001\u6587\u4EF6\u540D\u3001\u5927\u5C0F\u3001\u6240\u5728\u6587\u4EF6\u5939\uFF09\u3002",
     login: "uis",
     effect: "read",
-    params: { course: z3.string().describe("\u8BFE\u7A0B id \u6216\u540D\u79F0\u5173\u952E\u8BCD"), search: z3.string().optional().describe("\u6587\u4EF6\u540D\u5173\u952E\u8BCD") },
+    params: { course: z5.string().describe("\u8BFE\u7A0B id \u6216\u540D\u79F0\u5173\u952E\u8BCD"), search: z5.string().optional().describe("\u6587\u4EF6\u540D\u5173\u952E\u8BCD") },
     examples: ["fdu elearning files --course \u7EBF\u6027\u4EE3\u6570 --search \u7B2C5\u8BB2"],
     async run(ctx, a) {
       const [course] = await resolveCourses(ctx, a.course);
@@ -4899,7 +5290,7 @@ var OPS = [
     summary: "\u4E0B\u8F7D\u4E00\u4E2A\u8BFE\u7A0B\u6587\u4EF6\u5230\u672C\u673A\uFF08\u9ED8\u8BA4\u5F53\u524D\u76EE\u5F55\uFF1B\u540C\u540D\u6587\u4EF6\u4E0D\u8986\u76D6\uFF0C\u81EA\u52A8\u52A0\u5E8F\u53F7\uFF1B\u5355\u4E2A\u6700\u5927 200 MB\uFF09\u3002",
     login: "uis",
     effect: "local-write",
-    params: { file: z3.string().describe("\u6587\u4EF6 id\uFF08\u6765\u81EA elearning files\uFF09"), out: z3.string().optional().describe("\u4FDD\u5B58\u5230\u54EA\u4E2A\u6587\u4EF6\u5939\uFF0C\u9ED8\u8BA4\u5F53\u524D\u76EE\u5F55") },
+    params: { file: z5.string().describe("\u6587\u4EF6 id\uFF08\u6765\u81EA elearning files\uFF09"), out: z5.string().optional().describe("\u4FDD\u5B58\u5230\u54EA\u4E2A\u6587\u4EF6\u5939\uFF0C\u9ED8\u8BA4\u5F53\u524D\u76EE\u5F55") },
     async run(ctx, a) {
       const f = await elearning(ctx).downloadFile(a.file);
       const dir = outPath(ctx, a.out, ".");
@@ -4926,7 +5317,7 @@ var OPS = [
     login: "none",
     effect: "read",
     cache: false,
-    params: { date: z3.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("\u65E5\u671F YYYY-MM-DD\uFF0C\u9ED8\u8BA4\u4ECA\u5929") },
+    params: { date: z5.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("\u65E5\u671F YYYY-MM-DD\uFF0C\u9ED8\u8BA4\u4ECA\u5929") },
     async run(ctx, a) {
       const day = a.date ?? shanghaiDay(ctx.now());
       let info = weekInfo(day);
@@ -4945,7 +5336,7 @@ var OPS = [
     summary: "\u8BFE\u8868\uFF1A\u6BCF\u95E8\u8BFE\u7684\u4E0A\u8BFE\u65F6\u95F4\uFF08\u661F\u671F\u3001\u8282\u6B21\u3001\u8D77\u6B62\u65F6\u95F4\uFF09\u3001\u5730\u70B9\u3001\u6559\u5B66\u5468\u3001\u6559\u5E08\u3002",
     login: "uis",
     effect: "read",
-    params: { semester: z3.string().optional().describe("\u5B66\u671F id \u6216\u540D\u79F0\u5173\u952E\u8BCD\uFF0C\u9ED8\u8BA4\u5F53\u524D\u5B66\u671F"), postgraduate: flag("\u7814\u7A76\u751F\u8BFE\u8868\uFF08\u8BFB\u7814\u7A76\u751F\u9009\u8BFE\u7CFB\u7EDF\uFF09") },
+    params: { semester: z5.string().optional().describe("\u5B66\u671F id \u6216\u540D\u79F0\u5173\u952E\u8BCD\uFF0C\u9ED8\u8BA4\u5F53\u524D\u5B66\u671F"), postgraduate: flag("\u7814\u7A76\u751F\u8BFE\u8868\uFF08\u8BFB\u7814\u7A76\u751F\u9009\u8BFE\u7CFB\u7EDF\uFF09") },
     examples: ["fdu jw timetable", "fdu jw timetable --semester 2026-2027\u5B66\u5E741\u5B66\u671F"],
     async run(ctx, a) {
       return readTimetable(ctx.session.reader("jwfw"), { semester: a.semester, postgraduate: a.postgraduate });
@@ -4967,7 +5358,7 @@ var OPS = [
     login: "uis",
     effect: "read",
     sensitive: true,
-    params: { semester: z3.string().optional().describe("\u53EA\u770B\u67D0\u4E2A\u5B66\u671F\uFF08id \u6216\u540D\u79F0\u5173\u952E\u8BCD\uFF09") },
+    params: { semester: z5.string().optional().describe("\u53EA\u770B\u67D0\u4E2A\u5B66\u671F\uFF08id \u6216\u540D\u79F0\u5173\u952E\u8BCD\uFF09") },
     async run(ctx, a) {
       const { studentId: _id, ...r } = await readGrades(ctx.session.reader("jwfw"));
       if (!a.semester) return r;
@@ -4981,7 +5372,7 @@ var OPS = [
     login: "uis",
     effect: "read",
     sensitive: true,
-    params: { studentNumber: z3.string().regex(/^\d{8,14}$/).optional().describe("\u5B66\u53F7\uFF0C\u7528\u6765\u5728\u6392\u540D\u8868\u91CC\u627E\u5230\u4F60\uFF1B\u4E0D\u4F20\u65F6\u5C1D\u8BD5\u4ECE eLearning \u8BFB\u53D6") },
+    params: { studentNumber: z5.string().regex(/^\d{8,14}$/).optional().describe("\u5B66\u53F7\uFF0C\u7528\u6765\u5728\u6392\u540D\u8868\u91CC\u627E\u5230\u4F60\uFF1B\u4E0D\u4F20\u65F6\u5C1D\u8BD5\u4ECE eLearning \u8BFB\u53D6") },
     async run(ctx, a) {
       const reader = ctx.session.reader("jwfw");
       const { studentId } = await readStudentId(reader);
@@ -5018,8 +5409,8 @@ var OPS = [
     login: "uis",
     effect: "read",
     params: {
-      keyword: z3.string().min(1).describe("\u8BFE\u7A0B\u540D\uFF08\u5305\u542B\u5373\u53EF\uFF09\uFF0C\u5982\u300C\u6570\u636E\u7ED3\u6784\u300D"),
-      semester: z3.string().optional().describe("\u5B66\u671F id \u6216\u540D\u79F0\u5173\u952E\u8BCD\uFF0C\u9ED8\u8BA4\u5F53\u524D\u5B66\u671F"),
+      keyword: z5.string().min(1).describe("\u8BFE\u7A0B\u540D\uFF08\u5305\u542B\u5373\u53EF\uFF09\uFF0C\u5982\u300C\u6570\u636E\u7ED3\u6784\u300D"),
+      semester: z5.string().optional().describe("\u5B66\u671F id \u6216\u540D\u79F0\u5173\u952E\u8BCD\uFF0C\u9ED8\u8BA4\u5F53\u524D\u5B66\u671F"),
       page: int2("\u7B2C\u51E0\u9875\uFF0C\u9ED8\u8BA4 1", 1, 500),
       size: int2("\u6BCF\u9875\u51E0\u6761\uFF0C\u9ED8\u8BA4 20", 1, 100),
       syllabus: flag("\u540C\u65F6\u8BFB\u6BCF\u4E2A\u6559\u5B66\u73ED\u7684\u6559\u5B66\u5927\u7EB2\uFF08\u6700\u591A\u524D 5 \u4E2A\uFF0C\u8F83\u6162\uFF09")
@@ -5038,7 +5429,7 @@ var OPS = [
     summary: "\u67D0\u4E2A\u6559\u5B66\u73ED\u7684\u6559\u5B66\u5927\u7EB2\uFF1A\u8BFE\u7A0B\u4FE1\u606F\u3001\u7B80\u4ECB\u3001\u6559\u5B66\u76EE\u6807\u3001\u6BCF\u5468\u5185\u5BB9\u5B89\u6392\u3001\u8003\u6838\u65B9\u5F0F\u548C\u6743\u91CD\u3001\u6559\u6750\u3001\u6559\u5B66\u56E2\u961F\u3002\u6559\u5B66\u73ED id \u6765\u81EA fdu jw lessons\u3002",
     login: "uis",
     effect: "read",
-    params: { lesson: z3.string().regex(/^\d+$/).describe("\u6559\u5B66\u73ED id\uFF08fdu jw lessons \u7ED3\u679C\u91CC\u7684 id\uFF09"), maxChars: int2("\u6700\u591A\u8FD4\u56DE\u591A\u5C11\u5B57\uFF0C\u9ED8\u8BA4 30000", 1e3, 2e5) },
+    params: { lesson: z5.string().regex(/^\d+$/).describe("\u6559\u5B66\u73ED id\uFF08fdu jw lessons \u7ED3\u679C\u91CC\u7684 id\uFF09"), maxChars: int2("\u6700\u591A\u8FD4\u56DE\u591A\u5C11\u5B57\uFF0C\u9ED8\u8BA4 30000", 1e3, 2e5) },
     examples: ["fdu jw syllabus --lesson 1037803"],
     async run(ctx, a) {
       return readSyllabus(ctx.session.reader("jwfw"), a.lesson, a.maxChars);
@@ -5049,7 +5440,7 @@ var OPS = [
     summary: "\u9009\u8BFE\u7ED3\u679C\uFF1A\u67D0\u5B66\u671F\u5DF2\u9009\u4E0A\u7684\u8BFE\u3001\u5B66\u5206\u548C\u4E0A\u8BFE\u65F6\u95F4\u3002",
     login: "uis",
     effect: "read",
-    params: { which: z3.string().optional().describe("current \u5F53\u524D\u5B66\u671F\uFF08\u9ED8\u8BA4\uFF09\u3001next \u4E0B\u5B66\u671F\uFF0C\u6216\u5B66\u671F\u540D\u5173\u952E\u8BCD") },
+    params: { which: z5.string().optional().describe("current \u5F53\u524D\u5B66\u671F\uFF08\u9ED8\u8BA4\uFF09\u3001next \u4E0B\u5B66\u671F\uFF0C\u6216\u5B66\u671F\u540D\u5173\u952E\u8BCD") },
     async run(ctx, a) {
       return readSelectedCourses(ctx.session.reader("jwfw"), a.which ?? "current");
     }
@@ -5060,7 +5451,7 @@ var OPS = [
     summary: "\u5728 iCourse\uFF08\u8BFE\u7A0B\u56DE\u653E\uFF09\u91CC\u6309\u8BFE\u7A0B\u540D\u6216\u8001\u5E08\u627E\u8BFE\u7A0B\uFF0C\u8FD4\u56DE\u8BFE\u7A0B\u53F7\u3002\u9ED8\u8BA4\u627E\u6700\u65B0\u5B66\u671F\u3002",
     login: "uis",
     effect: "read",
-    params: { keyword: z3.string().min(1).describe("\u8BFE\u7A0B\u540D\u6216\u8001\u5E08\u540D"), term: z3.string().regex(/^\d+$/).optional().describe("iCourse \u7684\u5B66\u671F\u7F16\u53F7\uFF08\u6765\u81EA icourse terms\uFF09\uFF0C\u9ED8\u8BA4\u6700\u65B0\u5B66\u671F"), limit: int2("\u6700\u591A\u51E0\u6761\uFF0C\u9ED8\u8BA4 20", 1, 100) },
+    params: { keyword: z5.string().min(1).describe("\u8BFE\u7A0B\u540D\u6216\u8001\u5E08\u540D"), term: z5.string().regex(/^\d+$/).optional().describe("iCourse \u7684\u5B66\u671F\u7F16\u53F7\uFF08\u6765\u81EA icourse terms\uFF09\uFF0C\u9ED8\u8BA4\u6700\u65B0\u5B66\u671F"), limit: int2("\u6700\u591A\u51E0\u6761\uFF0C\u9ED8\u8BA4 20", 1, 100) },
     examples: ["fdu icourse search --keyword \u6570\u636E\u7ED3\u6784"],
     async run(ctx, a) {
       return icourse(ctx).search(a.keyword, { term: a.term, limit: a.limit });
@@ -5081,7 +5472,7 @@ var OPS = [
     summary: "\u4E00\u95E8\u8BFE\u5728 iCourse \u4E0A\u7684\u5168\u90E8\u8BB2\u6B21\uFF1A\u65E5\u671F\u3001\u8282\u6B21\u3001\u4E3B\u8BB2\u4EBA\u3001\u6709\u6CA1\u6709\u56DE\u653E\uFF0C\u6309\u65E5\u671F\u6392\u5E8F\u3002",
     login: "uis",
     effect: "read",
-    params: { course: z3.string().regex(/^\d+$/).describe("\u8BFE\u7A0B\u53F7\uFF08\u6765\u81EA icourse search\uFF09"), playback: flag("\u53EA\u770B\u6709\u56DE\u653E\u7684") },
+    params: { course: z5.string().regex(/^\d+$/).describe("\u8BFE\u7A0B\u53F7\uFF08\u6765\u81EA icourse search\uFF09"), playback: flag("\u53EA\u770B\u6709\u56DE\u653E\u7684") },
     examples: ["fdu icourse lectures --course 12345 --playback"],
     async run(ctx, a) {
       const r = await icourse(ctx).lectures(a.course);
@@ -5094,11 +5485,11 @@ var OPS = [
     login: "uis",
     effect: "read",
     params: {
-      course: z3.string().regex(/^\d+$/).describe("\u8BFE\u7A0B\u53F7"),
-      lecture: z3.string().regex(/^\d+$/).describe("\u8BB2\u6B21\u53F7\uFF08\u6765\u81EA icourse lectures \u7684 lectureId\uFF09"),
-      format: z3.enum(["text", "segments"]).optional().describe("text \u6309\u5206\u949F\u5408\u6210\u6BB5\u843D\uFF08\u9ED8\u8BA4\uFF09\uFF1Bsegments \u539F\u59CB\u5206\u6BB5\uFF08\u5F00\u59CB\u3001\u7ED3\u675F\u79D2\u6570\uFF09"),
-      offset: z3.coerce.number().int().min(0).optional().describe("\u4ECE\u7B2C\u51E0\u4E2A\u5B57\u5F00\u59CB\uFF08\u5206\u6BB5\u8BFB\u53D6\u957F\u6587\u5B57\u7A3F\u7528\uFF0C\u9ED8\u8BA4 0\uFF09"),
-      maxChars: z3.coerce.number().int().min(1e3).max(2e5).optional().describe("\u6700\u591A\u8FD4\u56DE\u591A\u5C11\u5B57\uFF0C\u9ED8\u8BA4 30000")
+      course: z5.string().regex(/^\d+$/).describe("\u8BFE\u7A0B\u53F7"),
+      lecture: z5.string().regex(/^\d+$/).describe("\u8BB2\u6B21\u53F7\uFF08\u6765\u81EA icourse lectures \u7684 lectureId\uFF09"),
+      format: z5.enum(["text", "segments"]).optional().describe("text \u6309\u5206\u949F\u5408\u6210\u6BB5\u843D\uFF08\u9ED8\u8BA4\uFF09\uFF1Bsegments \u539F\u59CB\u5206\u6BB5\uFF08\u5F00\u59CB\u3001\u7ED3\u675F\u79D2\u6570\uFF09"),
+      offset: z5.coerce.number().int().min(0).optional().describe("\u4ECE\u7B2C\u51E0\u4E2A\u5B57\u5F00\u59CB\uFF08\u5206\u6BB5\u8BFB\u53D6\u957F\u6587\u5B57\u7A3F\u7528\uFF0C\u9ED8\u8BA4 0\uFF09"),
+      maxChars: z5.coerce.number().int().min(1e3).max(2e5).optional().describe("\u6700\u591A\u8FD4\u56DE\u591A\u5C11\u5B57\uFF0C\u9ED8\u8BA4 30000")
     },
     examples: ["fdu icourse transcript --course 12345 --lecture 67890", "fdu icourse transcript --course 12345 --lecture 67890 --offset 30000"],
     async run(ctx, a) {
@@ -5128,10 +5519,10 @@ var OPS = [
         }
         return { course: a.course, lecture: a.lecture, duration, segments: out, ...next !== void 0 ? { nextOffset: next } : {} };
       }
-      const text3 = transcriptText(segments);
-      const part = text3.slice(offset, offset + max);
-      const nextOffset = offset + max < text3.length ? offset + max : void 0;
-      return { course: a.course, lecture: a.lecture, duration, totalChars: text3.length, offset, text: part, ...nextOffset !== void 0 ? { nextOffset, note: `\u8FD8\u6709 ${text3.length - nextOffset} \u5B57\uFF0C\u7528 --offset ${nextOffset} \u7EE7\u7EED\u8BFB\u3002` } : {} };
+      const text5 = transcriptText(segments);
+      const part = text5.slice(offset, offset + max);
+      const nextOffset = offset + max < text5.length ? offset + max : void 0;
+      return { course: a.course, lecture: a.lecture, duration, totalChars: text5.length, offset, text: part, ...nextOffset !== void 0 ? { nextOffset, note: `\u8FD8\u6709 ${text5.length - nextOffset} \u5B57\uFF0C\u7528 --offset ${nextOffset} \u7EE7\u7EED\u8BFB\u3002` } : {} };
     }
   }),
   // ======================= 校园生活 =======================
@@ -5154,10 +5545,10 @@ var OPS = [
     sensitive: true,
     params: {
       days: int2("\u6700\u8FD1\u51E0\u5929\uFF08\u542B\u4ECA\u5929\uFF09\uFF0C\u9ED8\u8BA4 7", 1, 366),
-      from: z3.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("\u5F00\u59CB\u65E5\u671F YYYY-MM-DD\uFF08\u548C --days \u4E8C\u9009\u4E00\uFF09"),
-      to: z3.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("\u7ED3\u675F\u65E5\u671F\uFF0C\u9ED8\u8BA4\u4ECA\u5929"),
+      from: z5.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("\u5F00\u59CB\u65E5\u671F YYYY-MM-DD\uFF08\u548C --days \u4E8C\u9009\u4E00\uFF09"),
+      to: z5.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("\u7ED3\u675F\u65E5\u671F\uFF0C\u9ED8\u8BA4\u4ECA\u5929"),
       limit: int2("\u6700\u591A\u8FD4\u56DE\u51E0\u6761\u660E\u7EC6\uFF0C\u9ED8\u8BA4 100\uFF08\u7EDF\u8BA1\u6309\u5168\u90E8\u8BB0\u5F55\u7B97\uFF09", 0, 2e3),
-      merchant: z3.string().optional().describe("\u53EA\u770B\u5546\u6237\u540D\u5305\u542B\u8FD9\u4E2A\u8BCD\u7684\uFF0C\u5982\u300C\u98DF\u5802\u300D\u300C\u5317\u533A\u300D")
+      merchant: z5.string().optional().describe("\u53EA\u770B\u5546\u6237\u540D\u5305\u542B\u8FD9\u4E2A\u8BCD\u7684\uFF0C\u5982\u300C\u98DF\u5802\u300D\u300C\u5317\u533A\u300D")
     },
     examples: ["fdu card transactions", "fdu card transactions --days 30 --limit 0", "fdu card transactions --from 2026-10-01 --to 2026-10-31"],
     async run(ctx, a) {
@@ -5191,8 +5582,8 @@ var OPS = [
     effect: "read",
     cacheTtl: REALTIME_TTL,
     params: {
-      venue: z3.string().min(1).describe("\u573A\u9986 id \u6216\u540D\u79F0\u5173\u952E\u8BCD\uFF0C\u591A\u4E2A\u8BCD\u7528\u7A7A\u683C\u5206\u5F00"),
-      date: z3.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("\u65E5\u671F YYYY-MM-DD\uFF0C\u9ED8\u8BA4\u4ECA\u5929"),
+      venue: z5.string().min(1).describe("\u573A\u9986 id \u6216\u540D\u79F0\u5173\u952E\u8BCD\uFF0C\u591A\u4E2A\u8BCD\u7528\u7A7A\u683C\u5206\u5F00"),
+      date: z5.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("\u65E5\u671F YYYY-MM-DD\uFF0C\u9ED8\u8BA4\u4ECA\u5929"),
       days: int2("\u8FDE\u770B\u51E0\u5929\uFF0C\u9ED8\u8BA4 1", 1, 7),
       all: flag("\u4E5F\u5217\u51FA\u5DF2\u7ECF\u7EA6\u6EE1\u7684\u65F6\u6BB5")
     },
@@ -5219,7 +5610,7 @@ var OPS = [
     login: "uis",
     effect: "read",
     cacheTtl: REALTIME_TTL,
-    params: { campus: z3.string().optional().describe("\u53EA\u770B\u67D0\u4E2A\u6821\u533A\uFF1A\u90AF\u90F8\u3001\u67AB\u6797\u3001\u6C5F\u6E7E\u3001\u5F20\u6C5F") },
+    params: { campus: z5.string().optional().describe("\u53EA\u770B\u67D0\u4E2A\u6821\u533A\uFF1A\u90AF\u90F8\u3001\u67AB\u6797\u3001\u6C5F\u6E7E\u3001\u5F20\u6C5F") },
     examples: ["fdu canteen crowd", "fdu canteen crowd --campus \u90AF\u90F8"],
     async run(ctx, a) {
       const r = await readCanteen(ctx.session.reader("jwfw"));
@@ -5234,8 +5625,8 @@ var OPS = [
     effect: "read",
     params: {
       holiday: flag("\u8282\u5047\u65E5\u65F6\u523B\u8868\uFF08\u9ED8\u8BA4\u5DE5\u4F5C\u65E5\uFF09"),
-      from: z3.string().optional().describe("\u51FA\u53D1\u6821\u533A\uFF1A\u90AF\u90F8\u3001\u6C5F\u6E7E\u3001\u67AB\u6797\u3001\u5F20\u6C5F"),
-      to: z3.string().optional().describe("\u5230\u8FBE\u6821\u533A")
+      from: z5.string().optional().describe("\u51FA\u53D1\u6821\u533A\uFF1A\u90AF\u90F8\u3001\u6C5F\u6E7E\u3001\u67AB\u6797\u3001\u5F20\u6C5F"),
+      to: z5.string().optional().describe("\u5230\u8FBE\u6821\u533A")
     },
     examples: ["fdu bus schedule --from \u90AF\u90F8 --to \u6C5F\u6E7E", "fdu bus schedule --holiday"],
     async run(ctx, a) {
@@ -5294,8 +5685,8 @@ var OPS = [
     effect: "read",
     cacheTtl: REALTIME_TTL,
     params: {
-      building: z3.string().min(1).describe(`\u6559\u5B66\u697C\u4EE3\u7801\uFF0C\u591A\u4E2A\u7528\u9017\u53F7\u5206\u5F00\uFF1A${BUILDINGS.join("\u3001")}\uFF08H2 = \u4E8C\u6559\uFF0CHGX = \u5149\u534E\u697C\uFF09`),
-      date: z3.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("\u65E5\u671F YYYY-MM-DD\uFF0C\u9ED8\u8BA4\u4ECA\u5929"),
+      building: z5.string().min(1).describe(`\u6559\u5B66\u697C\u4EE3\u7801\uFF0C\u591A\u4E2A\u7528\u9017\u53F7\u5206\u5F00\uFF1A${BUILDINGS.join("\u3001")}\uFF08H2 = \u4E8C\u6559\uFF0CHGX = \u5149\u534E\u697C\uFF09`),
+      date: z5.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("\u65E5\u671F YYYY-MM-DD\uFF0C\u9ED8\u8BA4\u4ECA\u5929"),
       from: int2("\u4ECE\u7B2C\u51E0\u8282\uFF081\u201314\uFF09\uFF0C\u9ED8\u8BA4\u73B0\u5728\u8FD9\u4E00\u8282", 1, 14),
       to: int2("\u5230\u7B2C\u51E0\u8282\uFF08\u542B\uFF09\uFF0C\u9ED8\u8BA4 from \u7684\u4E0B\u4E00\u8282", 1, 14),
       minSeats: int2("\u81F3\u5C11\u591A\u5C11\u5EA7\u4F4D", 1, 1e3)
@@ -5326,9 +5717,9 @@ var OPS = [
     effect: "read",
     cacheTtl: REALTIME_TTL,
     params: {
-      building: z3.string().optional().describe(`\u6559\u5B66\u697C\u4EE3\u7801\uFF0C\u591A\u4E2A\u7528\u9017\u53F7\u5206\u5F00\uFF1A${BUILDINGS.join("\u3001")}\uFF08H2 = \u4E8C\u6559\uFF0CHGX = \u5149\u534E\u697C\uFF09\uFF1B\u4E0D\u586B\u67E5\u5168\u90E8`),
-      date: z3.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("\u65E5\u671F YYYY-MM-DD\uFF0C\u9ED8\u8BA4\u4ECA\u5929"),
-      room: z3.string().optional().describe("\u53EA\u770B\u67D0\u95F4\u6559\u5BA4\uFF0C\u5982 H2101"),
+      building: z5.string().optional().describe(`\u6559\u5B66\u697C\u4EE3\u7801\uFF0C\u591A\u4E2A\u7528\u9017\u53F7\u5206\u5F00\uFF1A${BUILDINGS.join("\u3001")}\uFF08H2 = \u4E8C\u6559\uFF0CHGX = \u5149\u534E\u697C\uFF09\uFF1B\u4E0D\u586B\u67E5\u5168\u90E8`),
+      date: z5.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("\u65E5\u671F YYYY-MM-DD\uFF0C\u9ED8\u8BA4\u4ECA\u5929"),
+      room: z5.string().optional().describe("\u53EA\u770B\u67D0\u95F4\u6559\u5BA4\uFF0C\u5982 H2101"),
       brief: flag("\u7B80\u8981\uFF1A\u4E0D\u5217\u6BCF\u8282\u7684\u8BFE\u7A0B\uFF0C\u53EA\u7ED9\u6C47\u603B\u3001\u5EA7\u4F4D\u3001\u73B0\u5728\u7684\u72B6\u6001\u548C\u7A7A\u95F2\u65F6\u6BB5\uFF08\u67E5\u5F88\u591A\u697C\u65F6\u7528\uFF09")
     },
     examples: ["fdu rooms day --building H2", "fdu rooms day --building H3,HGX --date 2026-11-10", "fdu rooms day --brief"],
@@ -5432,13 +5823,13 @@ var OPS = [
     login: "none",
     effect: "read",
     params: {
-      query: z3.string().min(1).describe("\u68C0\u7D22\u8BCD"),
-      scope: z3.enum(["articles", "all", "books"]).optional().describe("articles \u6587\u7AE0\uFF08\u9ED8\u8BA4\uFF09\u3001books \u56FE\u4E66\u671F\u520A\u3001all \u5168\u90E8"),
-      field: z3.enum(["all", "title", "author", "subject", "fulltext"]).optional(),
+      query: z5.string().min(1).describe("\u68C0\u7D22\u8BCD"),
+      scope: z5.enum(["articles", "all", "books"]).optional().describe("articles \u6587\u7AE0\uFF08\u9ED8\u8BA4\uFF09\u3001books \u56FE\u4E66\u671F\u520A\u3001all \u5168\u90E8"),
+      field: z5.enum(["all", "title", "author", "subject", "fulltext"]).optional(),
       limit: int2("\u8FD4\u56DE\u51E0\u6761\uFF0C\u9ED8\u8BA4 10", 1, 50),
-      yearFrom: z3.coerce.number().int().optional(),
-      yearTo: z3.coerce.number().int().optional(),
-      sort: z3.enum(["relevance", "newest"]).optional(),
+      yearFrom: z5.coerce.number().int().optional(),
+      yearTo: z5.coerce.number().int().optional(),
+      sort: z5.enum(["relevance", "newest"]).optional(),
       peerReviewedOnly: flag("\u53EA\u770B\u540C\u884C\u8BC4\u5BA1"),
       fullTextOnly: flag("\u53EA\u770B\u6709\u5168\u6587\u7684")
     },
@@ -5468,7 +5859,7 @@ var OPS = [
     summary: "\u67D0\u4E2A\u90E8\u95E8 / \u9662\u7CFB\u5B98\u7F51\u6700\u65B0\u7684\u901A\u77E5\u5217\u8868\uFF08\u6807\u9898\u3001\u65E5\u671F\u3001\u94FE\u63A5\uFF09\u3002",
     login: "none",
     effect: "read",
-    params: { source: z3.string().describe("\u6765\u6E90 id \u6216\u540D\u79F0\uFF0C\u5982 jwc\u3001\u6559\u52A1\u5904\u3001\u8BA1\u7B97\u673A\u5B66\u9662"), limit: int2("\u8FD4\u56DE\u51E0\u6761\uFF0C\u9ED8\u8BA4 20", 1, 100) },
+    params: { source: z5.string().describe("\u6765\u6E90 id \u6216\u540D\u79F0\uFF0C\u5982 jwc\u3001\u6559\u52A1\u5904\u3001\u8BA1\u7B97\u673A\u5B66\u9662"), limit: int2("\u8FD4\u56DE\u51E0\u6761\uFF0C\u9ED8\u8BA4 20", 1, 100) },
     examples: ["fdu notices list --source \u6559\u52A1\u5904"],
     async run(ctx, a) {
       const source = NOTICE_SOURCES.find((s) => s.id === a.source) ?? findNoticeSource(a.source);
@@ -5483,7 +5874,7 @@ var OPS = [
     summary: "\u8BFB\u4E00\u6761\u901A\u77E5\u7684\u6B63\u6587\u3001\u53D1\u5E03\u65E5\u671F\u548C\u9644\u4EF6\u94FE\u63A5\u3002",
     login: "none",
     effect: "read",
-    params: { url: z3.string().url().describe("\u901A\u77E5\u94FE\u63A5\uFF08\u6765\u81EA notices list\uFF09") },
+    params: { url: z5.string().url().describe("\u901A\u77E5\u94FE\u63A5\uFF08\u6765\u81EA notices list\uFF09") },
     async run(ctx, a) {
       if (!/^https?:\/\//.test(a.url)) throw new FduError("BAD_ARGS", "\u53EA\u652F\u6301 http / https \u94FE\u63A5\u3002");
       if (!isFudanHost(a.url)) throw new FduError("BAD_ARGS", "\u53EA\u80FD\u8BFB\u590D\u65E6\u7F51\u7AD9\uFF08*.fudan.edu.cn\uFF09\u4E0A\u7684\u901A\u77E5\u3002", "\u94FE\u63A5\u8BF7\u7528 fdu notices list \u8FD4\u56DE\u7684\u3002");
@@ -5501,7 +5892,7 @@ var OPS = [
     login: "none",
     effect: "auth",
     mcp: false,
-    params: { email: z3.string().email().describe("\u6811\u6D1E\u8D26\u53F7\u90AE\u7BB1\uFF0C\u901A\u5E38\u662F \u5B66\u53F7@m.fudan.edu.cn") },
+    params: { email: z5.string().email().describe("\u6811\u6D1E\u8D26\u53F7\u90AE\u7BB1\uFF0C\u901A\u5E38\u662F \u5B66\u53F7@m.fudan.edu.cn") },
     async run(ctx, a) {
       const password = await needPrompt(ctx)("\u6811\u6D1E\u5BC6\u7801\uFF08\u4E0D\u4F1A\u663E\u793A\uFF0C\u4E5F\u4E0D\u4F1A\u4FDD\u5B58\uFF09\uFF1A", { hidden: true });
       await treehole(ctx).login(a.email, password);
@@ -5524,7 +5915,7 @@ var OPS = [
     summary: "\u5728\u6811\u6D1E\u91CC\u641C\u7D22\u5E16\u5B50\u697C\u5C42\uFF08\u533F\u540D\u540C\u5B66\u7684\u4E2A\u4EBA\u770B\u6CD5\uFF0C\u4E0D\u662F\u4E8B\u5B9E\uFF09\u3002",
     login: "hole",
     effect: "read",
-    params: { keyword: z3.string().min(1), limit: int2("\u8FD4\u56DE\u51E0\u6761\uFF0C\u9ED8\u8BA4 10", 1, 50), days: int2("\u53EA\u770B\u6700\u8FD1\u51E0\u5929", 1, 3650), accurate: flag("\u7CBE\u786E\u5339\u914D") },
+    params: { keyword: z5.string().min(1), limit: int2("\u8FD4\u56DE\u51E0\u6761\uFF0C\u9ED8\u8BA4 10", 1, 50), days: int2("\u53EA\u770B\u6700\u8FD1\u51E0\u5929", 1, 3650), accurate: flag("\u7CBE\u786E\u5339\u914D") },
     async run(ctx, a) {
       return treehole(ctx).searchFloors(a.keyword, { limit: a.limit, withinDays: a.days, accurate: a.accurate });
     }
@@ -5534,7 +5925,7 @@ var OPS = [
     summary: "\u8BFB\u4E00\u4E2A\u6811\u6D1E\u5E16\u5B50\uFF08\u6D1E\u53F7\uFF09\u53CA\u5176\u697C\u5C42\u3002",
     login: "hole",
     effect: "read",
-    params: { id: z3.coerce.number().int().positive().describe("\u6D1E\u53F7"), start: int2("\u4ECE\u7B2C\u51E0\u697C\u5F00\u59CB", 0, 1e5), length: int2("\u8BFB\u51E0\u697C\uFF0C\u9ED8\u8BA4 30", 1, 100) },
+    params: { id: z5.coerce.number().int().positive().describe("\u6D1E\u53F7"), start: int2("\u4ECE\u7B2C\u51E0\u697C\u5F00\u59CB", 0, 1e5), length: int2("\u8BFB\u51E0\u697C\uFF0C\u9ED8\u8BA4 30", 1, 100) },
     async run(ctx, a) {
       return treehole(ctx).hole(a.id, { start: a.start, length: a.length });
     }
@@ -5557,10 +5948,10 @@ var OPS = [
     cacheTtl: 5 * 6e4,
     params: {
       length: int2("\u6700\u591A\u51E0\u6761\uFF0C\u9ED8\u8BA4 10", 1, 50),
-      tag: z3.string().optional().describe("\u6807\u7B7E"),
+      tag: z5.string().optional().describe("\u6807\u7B7E"),
       division: int2("\u5206\u533A id\uFF0C\u6765\u81EA hole divisions\uFF0C\u9ED8\u8BA4 1", 1, 1e5),
-      sort: z3.enum(["created", "updated"]).optional().describe("created \u6309\u53D1\u5E16\u65F6\u95F4\uFF08\u9ED8\u8BA4\uFF09\uFF1Bupdated \u6309\u6700\u540E\u56DE\u590D\u65F6\u95F4"),
-      before: z3.iso.datetime({ offset: true }).optional().describe("\u7FFB\u9875\u6E38\u6807\uFF0C\u5E26\u65F6\u533A\u7684 ISO \u65F6\u95F4\uFF1B\u53D6\u4E0A\u4E00\u9875\u6700\u540E\u4E00\u6761\u7684 createdAt \u6216 updatedAt\uFF08\u4E0E sort \u5BF9\u5E94\uFF09\uFF0C\u9ED8\u8BA4\u5F53\u524D\u65F6\u95F4")
+      sort: z5.enum(["created", "updated"]).optional().describe("created \u6309\u53D1\u5E16\u65F6\u95F4\uFF08\u9ED8\u8BA4\uFF09\uFF1Bupdated \u6309\u6700\u540E\u56DE\u590D\u65F6\u95F4"),
+      before: z5.iso.datetime({ offset: true }).optional().describe("\u7FFB\u9875\u6E38\u6807\uFF0C\u5E26\u65F6\u533A\u7684 ISO \u65F6\u95F4\uFF1B\u53D6\u4E0A\u4E00\u9875\u6700\u540E\u4E00\u6761\u7684 createdAt \u6216 updatedAt\uFF08\u4E0E sort \u5BF9\u5E94\uFF09\uFF0C\u9ED8\u8BA4\u5F53\u524D\u65F6\u95F4")
     },
     examples: ["fdu hole latest --length 5", "fdu hole latest --sort updated --length 10", "fdu hole latest --division 1 --before 2026-11-01T12:00:00+08:00"],
     async run(ctx, a) {
@@ -5572,7 +5963,7 @@ var OPS = [
     summary: "\u5728\u86CB\u58F3\u8BFE\u8BC4\uFF08danke.fduhole.com\uFF0C\u65E6\u631E\u7684\u8BFE\u7A0B\u8BC4\u4EF7\uFF09\u91CC\u641C\u7D22\u8BFE\u7A0B\u3002",
     login: "hole",
     effect: "read",
-    params: { keyword: z3.string().min(1).describe("\u8BFE\u7A0B\u540D\u6216\u8BFE\u7A0B\u4EE3\u7801"), limit: int2("\u51E0\u6761\uFF0C\u9ED8\u8BA4 10", 1, 50) },
+    params: { keyword: z5.string().min(1).describe("\u8BFE\u7A0B\u540D\u6216\u8BFE\u7A0B\u4EE3\u7801"), limit: int2("\u51E0\u6761\uFF0C\u9ED8\u8BA4 10", 1, 50) },
     async run(ctx, a) {
       return treehole(ctx).searchCourses(a.keyword, a.limit);
     }
@@ -5582,7 +5973,7 @@ var OPS = [
     summary: "\u67D0\u95E8\u8BFE\u5728\u86CB\u58F3\u8BFE\u8BC4\u4E0A\u7684\u8BC4\u4EF7\uFF08\u8BC4\u5206\u3001\u4F5C\u4E1A\u91CF\u3001\u7ED9\u5206\u3001\u5404\u8001\u5E08\u7684\u8BC4\u4EF7\uFF09\u3002",
     login: "hole",
     effect: "read",
-    params: { id: z3.coerce.number().int().positive().describe("\u8BFE\u7A0B\u7EC4 id\uFF08\u6765\u81EA danke search \u7684 course_group_id\uFF09"), max: int2("\u6700\u591A\u51E0\u6761\u8BC4\u4EF7\uFF0C\u9ED8\u8BA4 12", 1, 50) },
+    params: { id: z5.coerce.number().int().positive().describe("\u8BFE\u7A0B\u7EC4 id\uFF08\u6765\u81EA danke search \u7684 course_group_id\uFF09"), max: int2("\u6700\u591A\u51E0\u6761\u8BC4\u4EF7\uFF0C\u9ED8\u8BA4 12", 1, 50) },
     async run(ctx, a) {
       return treehole(ctx).courseReviews(a.id, a.max);
     }
@@ -5594,7 +5985,7 @@ var OPS = [
     login: "none",
     effect: "auth",
     mcp: false,
-    params: { user: z3.string().email().describe("\u90AE\u7BB1\u5730\u5740"), host: z3.string().optional().describe(`IMAP \u670D\u52A1\u5668\uFF0C\u9ED8\u8BA4 ${DEFAULT_FUDAN_STUDENT_IMAP.host}`), port: int2("\u7AEF\u53E3\uFF0C\u9ED8\u8BA4 993", 1, 65535) },
+    params: { user: z5.string().email().describe("\u90AE\u7BB1\u5730\u5740"), host: z5.string().optional().describe(`IMAP \u670D\u52A1\u5668\uFF0C\u9ED8\u8BA4 ${DEFAULT_FUDAN_STUDENT_IMAP.host}`), port: int2("\u7AEF\u53E3\uFF0C\u9ED8\u8BA4 993", 1, 65535) },
     async run(ctx, a) {
       const password = await needPrompt(ctx)("\u5BA2\u6237\u7AEF\u4E13\u7528\u5BC6\u7801\uFF08\u4E0D\u4F1A\u663E\u793A\uFF09\uFF1A", { hidden: true });
       const cfg = { host: a.host ?? DEFAULT_FUDAN_STUDENT_IMAP.host, port: a.port ?? DEFAULT_FUDAN_STUDENT_IMAP.port, user: a.user, password };
@@ -5631,7 +6022,7 @@ var OPS = [
     login: "mail",
     effect: "read",
     sensitive: true,
-    params: { days: int2("\u6700\u8FD1\u51E0\u5929\uFF0C\u9ED8\u8BA4 7", 1, 365), limit: int2("\u6700\u591A\u51E0\u5C01\uFF0C\u9ED8\u8BA4 30", 1, 200), query: z3.string().optional().describe("\u53EA\u770B\u53D1\u4EF6\u4EBA\u3001\u6536\u4EF6\u4EBA\u6216\u4E3B\u9898\u91CC\u5305\u542B\u8FD9\u4E2A\u8BCD\u7684"), folder: z3.string().min(1).optional().describe("\u9ED8\u8BA4 INBOX\uFF1Bsent \u81EA\u52A8\u5B9A\u4F4D\u5DF2\u53D1\u9001\uFF0C\u5176\u4ED6\u8DEF\u5F84\u6765\u81EA mail folders") },
+    params: { days: int2("\u6700\u8FD1\u51E0\u5929\uFF0C\u9ED8\u8BA4 7", 1, 365), limit: int2("\u6700\u591A\u51E0\u5C01\uFF0C\u9ED8\u8BA4 30", 1, 200), query: z5.string().optional().describe("\u53EA\u770B\u53D1\u4EF6\u4EBA\u3001\u6536\u4EF6\u4EBA\u6216\u4E3B\u9898\u91CC\u5305\u542B\u8FD9\u4E2A\u8BCD\u7684"), folder: z5.string().min(1).optional().describe("\u9ED8\u8BA4 INBOX\uFF1Bsent \u81EA\u52A8\u5B9A\u4F4D\u5DF2\u53D1\u9001\uFF0C\u5176\u4ED6\u8DEF\u5F84\u6765\u81EA mail folders") },
     examples: ["fdu mail list --days 7", "fdu mail list --folder sent --days 7"],
     async run(ctx, a) {
       const list2 = await mailClient(ctx).fetchSince(new Date(ctx.now() - (a.days ?? 7) * DAY3), 500, a.folder);
@@ -5646,7 +6037,7 @@ var OPS = [
     effect: "read",
     sensitive: true,
     cache: false,
-    params: { uid: z3.string().regex(/^\d+$/).describe("\u6587\u4EF6\u5939\u5185\u7684\u90AE\u4EF6 UID\uFF0C\u6765\u81EA mail list"), days: int2("\u5728\u6700\u8FD1\u51E0\u5929\u91CC\u627E\uFF0C\u9ED8\u8BA4 30", 1, 365), folder: z3.string().min(1).optional().describe("\u9ED8\u8BA4 INBOX\uFF1Bsent \u81EA\u52A8\u5B9A\u4F4D\u5DF2\u53D1\u9001\uFF0C\u5176\u4ED6\u8DEF\u5F84\u6765\u81EA mail folders") },
+    params: { uid: z5.string().regex(/^\d+$/).describe("\u6587\u4EF6\u5939\u5185\u7684\u90AE\u4EF6 UID\uFF0C\u6765\u81EA mail list"), days: int2("\u5728\u6700\u8FD1\u51E0\u5929\u91CC\u627E\uFF0C\u9ED8\u8BA4 30", 1, 365), folder: z5.string().min(1).optional().describe("\u9ED8\u8BA4 INBOX\uFF1Bsent \u81EA\u52A8\u5B9A\u4F4D\u5DF2\u53D1\u9001\uFF0C\u5176\u4ED6\u8DEF\u5F84\u6765\u81EA mail folders") },
     async run(ctx, a) {
       const m = (await mailClient(ctx).fetchSince(new Date(ctx.now() - (a.days ?? 30) * DAY3), 1e3, a.folder)).find((x) => x.uid === a.uid);
       if (!m) throw new FduError("NOT_FOUND", `\u6700\u8FD1 ${a.days ?? 30} \u5929\u91CC\u6CA1\u6709\u627E\u5230 uid \u4E3A ${a.uid} \u7684\u90AE\u4EF6\u3002`, "\u786E\u8BA4 --folder \u4E0E mail list \u76F8\u540C\uFF0C\u6216\u7528 --days \u653E\u5BBD\u8303\u56F4\u3002");
@@ -5697,7 +6088,7 @@ function autoLogin(ctx, e) {
 }
 
 // src/run.ts
-import { z as z4 } from "zod";
+import { z as z6 } from "zod";
 var cacheable = (op2) => op2.effect === "read" && op2.cache !== false;
 var cacheTtl = (op2) => op2.cacheTtl ?? (op2.sensitive ? 24 * 36e5 : 7 * 24 * 36e5);
 var camel = (s) => s.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
@@ -5705,7 +6096,7 @@ var kebab = (s) => s.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
 async function runOp(op2, ctx, input, opts = {}) {
   let args;
   try {
-    const parsed = z4.object(op2.params).strict().safeParse(input);
+    const parsed = z6.object(op2.params).strict().safeParse(input);
     if (!parsed.success) {
       const issues = parsed.error.issues.map((i) => i.code === "unrecognized_keys" ? `\u4E0D\u8BA4\u8BC6\u7684\u53C2\u6570\uFF1A${i.keys.map((k) => `--${kebab(k)}`).join("\u3001")}` : `--${kebab(String(i.path[0] ?? ""))}\uFF1A${i.message}`);
       throw new FduError("BAD_ARGS", issues.join("\uFF1B"), `\u7528 \`fdu describe ${op2.name}\` \u67E5\u770B\u53C2\u6570\u3002`);
@@ -5752,8 +6143,8 @@ function exitCode(r) {
   return 1;
 }
 function describeOp(op2) {
-  const shape = z4.object(op2.params);
-  const json = z4.toJSONSchema(shape, { io: "input", unrepresentable: "any" });
+  const shape = z6.object(op2.params);
+  const json = z6.toJSONSchema(shape, { io: "input", unrepresentable: "any" });
   const params = Object.entries(json.properties ?? {}).map(([name, p]) => ({
     flag: `--${kebab(name)}`,
     name,
@@ -5784,7 +6175,7 @@ var LOGIN_NOTE = {
   none: ""
 };
 function mcpShape(op2) {
-  return Object.fromEntries(Object.entries(op2.params).filter(([k]) => !op2.mcpOmit?.includes(k)).map(([k, v]) => [k, FLAGS.has(v) ? z5.boolean().optional().describe(v.description ?? "") : v]));
+  return Object.fromEntries(Object.entries(op2.params).filter(([k]) => !op2.mcpOmit?.includes(k)).map(([k, v]) => [k, FLAGS.has(v) ? z7.boolean().optional().describe(v.description ?? "") : v]));
 }
 var MCP_LOGIN_WAIT_MS = (Number(process.env.FDU_MCP_LOGIN_WAIT) || 50) * 1e3;
 function toolDescription(op2) {
@@ -5845,7 +6236,7 @@ async function serveMcp(opts = {}) {
 var GROUPS = [
   { id: "overview", name: "\u6C47\u603B", desc: "\u4ECA\u5929 / \u8FD9\u5468\u7684\u8BFE\u3001\u8981\u4EA4\u7684\u4F5C\u4E1A\u3001\u8003\u8BD5\uFF08\u7B80\u5199 fdu today\u3001fdu week\uFF09" },
   { id: "auth", name: "\u8D26\u53F7\u4E0E\u73AF\u5883", desc: "\u767B\u5F55\u590D\u65E6\u7EDF\u4E00\u8EAB\u4EFD\u8BA4\u8BC1\u3001\u67E5\u770B\u767B\u5F55\u72B6\u6001\u3001\u68C0\u67E5\u73AF\u5883\uFF08\u7B80\u5199 fdu login\u3001fdu status\u3001fdu doctor\uFF09" },
-  { id: "elearning", name: "eLearning", desc: "\u8BFE\u7A0B\u3001\u4F5C\u4E1A\u67E5\u8BE2\u4E0E\u63D0\u4EA4\u3001\u622A\u6B62\u65F6\u95F4\u3001\u5355\u5143\u548C\u9875\u9762\u3001\u516C\u544A\u3001\u8BFE\u4EF6\u4E0B\u8F7D\uFF08\u7B80\u5199 fdu todo\uFF09" },
+  { id: "elearning", name: "eLearning", desc: "\u8BFE\u7A0B\u3001\u4F5C\u4E1A\u67E5\u8BE2\u4E0E\u63D0\u4EA4\u3001\u622A\u6B62\u65F6\u95F4\u3001\u5E73\u65F6\u6210\u7EE9\u3001\u5355\u5143\u548C\u9875\u9762\u3001\u516C\u544A\u3001\u8BA8\u8BBA\u533A\u3001\u7AD9\u5185\u4FE1\u3001\u8BFE\u4EF6\u4E0B\u8F7D\uFF08\u7B80\u5199 fdu todo\uFF09" },
   { id: "jw", name: "\u6559\u52A1\u7CFB\u7EDF", desc: "\u8BFE\u8868\u3001\u8003\u8BD5\u3001\u6210\u7EE9\u7EE9\u70B9\u3001\u57F9\u517B\u65B9\u6848\u3001\u9009\u8BFE\u7ED3\u679C\u3001\u5168\u6821\u5F00\u8BFE\u67E5\u8BE2\u3001\u6559\u5B66\u5927\u7EB2\u3001\u6559\u5B66\u5468" },
   { id: "icourse", name: "iCourse \u8BFE\u7A0B\u56DE\u653E", desc: "\u627E\u8BFE\u7A0B\u3001\u8BB2\u6B21\u5217\u8868\u3001\u8BFE\u5802\u6587\u5B57\u7A3F" },
   { id: "rooms", name: "\u6559\u5BA4", desc: "\u5404\u6559\u5B66\u697C\u6BCF\u95F4\u6559\u5BA4\u7684\u5B89\u6392\u3001\u7A7A\u95F2\u65F6\u6BB5\u3001\u73B0\u5728\u7684\u72B6\u6001\uFF08\u7ECF WebVPN\uFF09" },
@@ -6025,20 +6416,20 @@ async function main(argv) {
     return 0;
   }
   const [first2] = positionals;
-  const text3 = (t) => {
+  const text5 = (t) => {
     process.stdout.write(t);
     return 0;
   };
-  if (!first2) return text3(helpOverview(VERSION2));
-  if (flags.help && first2 !== "help" && !findOp(resolveOpName(positionals).name ?? "") && !groupOf(first2)) return text3(helpOverview(VERSION2));
+  if (!first2) return text5(helpOverview(VERSION2));
+  if (flags.help && first2 !== "help" && !findOp(resolveOpName(positionals).name ?? "") && !groupOf(first2)) return text5(helpOverview(VERSION2));
   if (first2 === "help") {
     const rest2 = positionals.slice(1);
-    if (!rest2.length) return text3(helpOverview(VERSION2));
+    if (!rest2.length) return text5(helpOverview(VERSION2));
     const target = rest2.length > 1 || rest2[0].includes(".") || ALIASES[rest2[0]] ? resolveOpName(rest2).name : void 0;
     const op3 = target ? findOp(target) : void 0;
-    if (op3) return text3(helpOp(op3));
+    if (op3) return text5(helpOp(op3));
     const g = helpGroup(rest2[0]);
-    if (g && rest2.length === 1) return text3(g);
+    if (g && rest2.length === 1) return text5(g);
     process.stdout.write(`\u6CA1\u6709\u8FD9\u4E2A\u547D\u4EE4\uFF1A${rest2.join(" ")}\u3002\u8FD0\u884C fdu help \u67E5\u770B\u5168\u90E8\u547D\u4EE4\u3002
 `);
     return 2;
@@ -6065,7 +6456,7 @@ async function main(argv) {
   }
   const { name, rest } = resolveOpName(positionals);
   const op2 = name ? findOp(name) : void 0;
-  if (!op2 && positionals.length === 1 && groupOf(first2)) return text3(helpGroup(first2) ?? helpOverview(VERSION2));
+  if (!op2 && positionals.length === 1 && groupOf(first2)) return text5(helpGroup(first2) ?? helpOverview(VERSION2));
   if (!op2) {
     print({ ok: false, error: { code: "NOT_FOUND", message: `\u6CA1\u6709\u8FD9\u4E2A\u547D\u4EE4\uFF1A${positionals.join(" ")}`, hint: "\u8FD0\u884C `fdu help` \u67E5\u770B\u5168\u90E8\u547D\u4EE4\uFF08\u7ED9 AI \u770B\u7684 JSON \u5217\u8868\uFF1A`fdu services`\uFF09\u3002" } });
     return 2;
@@ -6074,7 +6465,7 @@ async function main(argv) {
     print({ ok: false, op: op2.name, error: { code: "BAD_ARGS", message: `\u591A\u4F59\u7684\u53C2\u6570\uFF1A${rest.join(" ")}`, hint: `\u53C2\u6570\u8981\u5199\u6210 --\u540D\u5B57 \u503C\uFF0C\u7528 \`fdu describe ${op2.name}\` \u67E5\u770B\u3002` } });
     return 2;
   }
-  if (flags.help) return text3(helpOp(op2));
+  if (flags.help) return text5(helpOp(op2));
   const store = new Store(profile);
   const session = new Session(store, { browserPath: browser, headed: flags.headed === true });
   const input = Object.fromEntries(Object.entries(flags).filter(([k]) => !GLOBAL.has(k)).map(([k, v]) => [camel(k), v]));

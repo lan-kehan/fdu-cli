@@ -75,10 +75,16 @@ export function pageDetailView(data: unknown, courseId: string) {
         ? [{ title: $(a).text().trim(), url: url.href }] : [];
     } catch { return []; }
   });
+  return { ...pageView(p), body, text: body === null ? null : htmlText(body), links };
+}
+/** HTML 转可读纯文本：去掉脚本、样式、表单，保留换行。 */
+export function htmlText(html: string): string {
+  const $ = load(html);
+  $('script, style, noscript, iframe, form').remove();
   $('br').replaceWith('\n');
   $('p, div, li, h1, h2, h3, h4, h5, h6, tr, blockquote, pre').append('\n');
   $('td, th').append('\t');
-  return { ...pageView(p), body, text: body === null ? null : $.root().text().replace(/[ \t]+/g, ' ').replace(/\n\s*\n/g, '\n').trim(), links };
+  return $.root().text().replace(/[ \t]+/g, ' ').replace(/\n\s*\n/g, '\n').trim();
 }
 export type CanvasPage = ReturnType<typeof pageView>;
 export type CanvasPageDetail = ReturnType<typeof pageDetailView>;
@@ -92,12 +98,21 @@ export function checkPageKey(page: string) {
   }
 }
 export async function readContent<T>(read: () => Promise<T>): Promise<T> {
+  return readCanvas({
+    denied: ['没有权限查看这部分课程内容。', '在 eLearning 网页确认当前账号已加入课程、栏目和内容已开放。'],
+    missing: ['没有找到课程单元或页面。', '核对课程 id 和页面标识；页面可能已删除或没有对你开放。'],
+    format: formatError,
+  }, read);
+}
+/** 把 Canvas 接口的 403 / 404 / 格式异常统一成带提示的 FduError。 */
+export async function readCanvas<T>(on: { denied: [string, string]; missing: [string, string]; format: () => FduError }, read: () => Promise<T>): Promise<T> {
   try { return await read(); }
   catch (e) {
     const status = (e as { status?: number }).status;
-    if (status === 403) throw new FduError('PERMISSION', '没有权限查看这部分课程内容。', '在 eLearning 网页确认当前账号已加入课程、栏目和内容已开放。');
-    if (status === 404) throw new FduError('NOT_FOUND', '没有找到课程单元或页面。', '核对课程 id 和页面标识；页面可能已删除或没有对你开放。');
-    if ((e as Error).message === 'eLearning 返回的数据格式不正确') throw formatError();
+    if (status === 403) throw new FduError('PERMISSION', ...on.denied);
+    if (status === 404) throw new FduError('NOT_FOUND', ...on.missing);
+    if ((e as Error).message === 'eLearning 返回的数据格式不正确') throw on.format();
     throw e;
   }
 }
+export { id as canvasId };

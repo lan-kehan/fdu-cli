@@ -2,7 +2,7 @@
 export const GROUPS: { id: string; name: string; desc: string }[] = [
   { id: 'overview', name: '汇总', desc: '今天 / 这周的课、要交的作业、考试（简写 fdu today、fdu week）' },
   { id: 'auth', name: '账号与环境', desc: '登录复旦统一身份认证、查看登录状态、检查环境（简写 fdu login、fdu status、fdu doctor）' },
-  { id: 'elearning', name: 'eLearning', desc: '课程、作业查询与提交、截止时间、单元和页面、公告、课件下载（简写 fdu todo）' },
+  { id: 'elearning', name: 'eLearning', desc: '课程、作业查询与提交、截止时间、平时成绩、单元和页面、公告、讨论区、站内信、课件下载（简写 fdu todo）' },
   { id: 'jw', name: '教务系统', desc: '课表、考试、成绩绩点、培养方案、选课结果、全校开课查询、教学大纲、教学周' },
   { id: 'icourse', name: 'iCourse 课程回放', desc: '找课程、讲次列表、课堂文字稿' },
   { id: 'rooms', name: '教室', desc: '各教学楼每间教室的安排、空闲时段、现在的状态（经 WebVPN）' },

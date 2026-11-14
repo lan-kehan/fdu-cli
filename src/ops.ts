@@ -13,6 +13,8 @@ import { filterBus, readBus } from './services/bus';
 import { readCanteen } from './services/canteen';
 import { ago, cookieExpiry, packSession, TRANSFER_FILES, unpackSession } from './services/session-transfer';
 import { CanvasClient, isAssignmentDone, type CanvasCourse } from './services/elearning';
+import { NO_TOTALS } from './services/elearning-grades';
+import { INBOX_SCOPES } from './services/elearning-messages';
 import { CanvasSubmitClient, MAX_SUBMISSION_BYTES } from './services/elearning-submit';
 import { readGpaRank, readGrades, readStudentId } from './services/grades';
 import { readExams, readLessons, readSemesters, readSyllabus, readTimetable } from './services/jw';
@@ -767,6 +769,54 @@ export const OPS: Op[] = [
       return a.page
         ? { courseId: course.id, course: course.name, page: await client.getPage(course.id, a.page) }
         : { courseId: course.id, course: course.name, pages: await client.listPages(course.id, a.search) };
+    },
+  }),
+  op({
+    name: 'elearning.grades', summary: '各门课在 eLearning 上的当前总评；加 --course 再列出这门课各作业组的权重和每项作业的得分、满分、班级统计。分数为 null 表示老师没开放或还没评分，不是零分。这是 eLearning 上的平时成绩，最终成绩看 jw grades。', login: 'uis', effect: 'read', sensitive: true,
+    params: { course: z.string().min(1).optional().describe('课程 id 或唯一名称关键词：返回这门课的作业组和各项得分；不传时只返回各门课的总评') },
+    examples: ['fdu elearning grades', 'fdu elearning grades --course 数据结构'],
+    async run(ctx, a) {
+      const client = elearning(ctx);
+      const courses = a.course ? [await resolveCourse(ctx, a.course)] : await resolveCourses(ctx);
+      const totals = await client.listGradeTotals();
+      const detail = a.course ? await client.getCourseGrades(courses[0].id) : undefined;
+      return courses.map((c) => ({ courseId: c.id, course: c.name, courseCode: c.courseCode, ...(totals.get(c.id) ?? NO_TOTALS), ...detail }));
+    },
+  }),
+  op({
+    name: 'elearning.discussions', summary: '课程讨论区：默认列出主题（标题、发帖人、正文、回帖数、未读数）；加 --topic 读取这个主题的全部回帖（树状）。只读，不标已读、不发帖；公告用 elearning announcements。', login: 'uis', effect: 'read',
+    params: {
+      course: z.string().min(1).describe('课程 id 或唯一名称关键词'),
+      topic: z.string().regex(/^[1-9]\d*$/).optional().describe('讨论主题 id，来自主题列表'),
+    },
+    examples: ['fdu elearning discussions --course 数据结构', 'fdu elearning discussions --course 数据结构 --topic 123'],
+    async run(ctx, a) {
+      const course = await resolveCourse(ctx, a.course);
+      const client = elearning(ctx);
+      if (a.topic) {
+        const topic = await client.getDiscussion(course.id, a.topic);
+        return { courseId: course.id, course: course.name, topic: { ...topic, postedAtShanghai: shanghaiDate(topic.postedAt ?? undefined) } };
+      }
+      const topics = await client.listDiscussions(course.id);
+      return { courseId: course.id, course: course.name, topics: topics.map((t) => ({ ...t, postedAtShanghai: shanghaiDate(t.postedAt ?? undefined), lastReplyAtShanghai: shanghaiDate(t.lastReplyAt ?? undefined) })) };
+    },
+  }),
+  op({
+    name: 'elearning.inbox', summary: 'eLearning 站内信（老师、助教、同学发的私信）：默认列出收件箱里最近的会话；加 --conversation 读取这个会话的全部消息和附件信息。只读，不标已读、不回复。', login: 'uis', effect: 'read', sensitive: true,
+    params: {
+      scope: z.enum(INBOX_SCOPES).optional().describe('看哪一类：inbox 收件箱（默认）、unread 未读、starred 星标、sent 已发送、archived 已归档；不能与 conversation 同用'),
+      limit: int('最多几个会话，默认 30', 1, 200),
+      conversation: z.string().regex(/^[1-9]\d*$/).optional().describe('会话 id，来自会话列表'),
+    },
+    examples: ['fdu elearning inbox --scope unread', 'fdu elearning inbox --conversation 123'],
+    async run(ctx, a) {
+      if (a.conversation) {
+        if (a.scope || a.limit) throw new FduError('BAD_ARGS', '--conversation 不能与 --scope、--limit 同时使用。', '读取单个会话时只传 --conversation。');
+        const c = await elearning(ctx).getConversation(a.conversation);
+        return { conversation: { ...c, lastMessageAtShanghai: shanghaiDate(c.lastMessageAt ?? undefined) } };
+      }
+      const list = await elearning(ctx).listConversations(a.scope, a.limit);
+      return { scope: a.scope ?? 'inbox', conversations: list.map((c) => ({ ...c, lastMessageAtShanghai: shanghaiDate(c.lastMessageAt ?? undefined) })) };
     },
   }),
   op({

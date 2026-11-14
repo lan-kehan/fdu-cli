@@ -68,7 +68,7 @@ args = ["mcp"]
 | 服务 | 命令 | 内容 | 需要 |
 |---|---|---|---|
 | 汇总 | `fdu today`、`fdu week` | 当天 / 当周的课（按教学周和放假安排筛好）、要交的作业、考试 | 复旦账号 |
-| eLearning | `fdu elearning courses / assignments / submit / modules / pages / announcements / files / download`、`fdu todo` | 课程、作业查询与提交、单元和页面、公告、课件列表和下载 | 复旦账号 |
+| eLearning | `fdu elearning courses / assignments / submit / grades / modules / pages / announcements / discussions / inbox / files / download`、`fdu todo` | 课程、作业查询与提交、平时成绩和作业组权重、单元和页面、公告、讨论区、站内信、课件列表和下载 | 复旦账号 |
 | 教务系统 | `fdu jw timetable / exams / grades / gpa / program / selected / semesters / week` | 课表（含研究生）、考试、成绩绩点和排名、培养方案完成情况、选课结果、教学周 | 复旦账号 |
 | 选课参考 | `fdu jw lessons`、`fdu jw syllabus` | 全校开课查询（老师、时间地点、名额）；教学大纲（每周内容、考核方式和权重、教材、教学团队） | 复旦账号 |
 | 课程回放 | `fdu icourse search / lectures / transcript / terms` | iCourse 讲次和课堂文字稿（自动转写，带时间） | 复旦账号 |
@@ -119,6 +119,23 @@ fdu elearning pages --course 数据结构 --page lab-guide
 页面锁定时只返回元数据和 `lockExplanation`，正文为 `null`，不尝试解锁。接口没有返回正文时也是 `null`，已返回的空正文为 `""`。HTML 不会被执行，纯文本会省略脚本、样式等内容；链接和附件只列地址，不自动请求、下载或启动外部工具。单元查询不跟随模块跳转地址，不调用标记已读或完成的接口。没有权限或分页读取失败时会明确报错，不把失败当作空列表。
 
 MCP 工具为 `elearning_modules` 和 `elearning_pages`；两个命令均只读，按普通查询缓存。接口依据：[Canvas Modules](https://developerdocs.instructure.com/services/canvas/resources/modules)、[Canvas Pages](https://developerdocs.instructure.com/services/canvas/resources/pages)。
+
+### 平时成绩、讨论区和站内信
+
+```bash
+fdu elearning grades                                    # 各门课的当前总评
+fdu elearning grades --course 数据结构                  # 作业组权重、每项作业的得分和班级统计
+fdu elearning discussions --course 数据结构             # 讨论主题列表
+fdu elearning discussions --course 数据结构 --topic 123 # 主题和全部回帖（树状）
+fdu elearning inbox --scope unread                      # 站内信会话
+fdu elearning inbox --conversation 456                  # 一个会话的全部消息
+```
+
+- `grades`：`currentScore` 只算已评分的作业，`finalScore` 把没交、没评分的按零分计入。分数为 `null` 表示老师没开放总评或还没评分，不是零分；`asStudent: false` 表示你在这门课不是学生身份。`weighted: true` 时各作业组的 `weight` 才是占总评的百分比。这是 eLearning 上的平时成绩，最终成绩看 `fdu jw grades`。
+- `discussions`：正文转成纯文本；锁定的主题 `text` 为 `null`。有的讨论要求先发帖才能看别人的回帖，这时返回 `PERMISSION`，不绕过。
+- `inbox`：读取会话时显式关闭 Canvas 的自动标已读（`auto_mark_as_read=false`）。
+
+三个命令均只读，不标已读、不发帖、不回复。`elearning.grades` 和 `elearning.inbox` 是隐私数据，缓存 24 小时。MCP 工具为 `elearning_grades`、`elearning_discussions`、`elearning_inbox`。接口依据：[Canvas Enrollments](https://developerdocs.instructure.com/services/canvas/resources/enrollments)、[Assignment Groups](https://developerdocs.instructure.com/services/canvas/resources/assignment_groups)、[Discussion Topics](https://developerdocs.instructure.com/services/canvas/resources/discussion_topics)、[Conversations](https://developerdocs.instructure.com/services/canvas/resources/conversations)。
 
 ### 查询作业提交记录和反馈
 
