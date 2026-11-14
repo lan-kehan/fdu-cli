@@ -2544,12 +2544,23 @@ async function readHistory(getJson, page, size) {
 import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
 var DEFAULT_FUDAN_STUDENT_IMAP = { host: "imap.exmail.qq.com", port: 993 };
+function mailError(error) {
+  if (error instanceof FduError) return error;
+  const e = error;
+  if (e.authenticationFailed || e.code === "AUTHENTICATIONFAILED") {
+    return new FduError("NEED_MAIL_SETUP", "\u90AE\u7BB1\u8BA4\u8BC1\u5931\u8D25\u3002", "\u68C0\u67E5\u90AE\u7BB1\u5730\u5740\u3001\u5BA2\u6237\u7AEF\u4E13\u7528\u5BC6\u7801\uFF0C\u5E76\u786E\u8BA4\u7F51\u9875\u90AE\u7BB1\u5DF2\u5F00\u542F IMAP\u3002");
+  }
+  return new FduError("UPSTREAM", "\u8FDE\u63A5\u6216\u8BFB\u53D6\u90AE\u7BB1\u5931\u8D25\u3002", "\u68C0\u67E5\u90AE\u7BB1\u670D\u52A1\u5668\u3001\u7AEF\u53E3\u548C\u7F51\u7EDC\u8FDE\u63A5\u540E\u91CD\u8BD5\u3002");
+}
 var ImapMailClient = class {
-  constructor(config) {
+  constructor(config, createClient) {
     this.config = config;
+    this.createClient = createClient;
   }
   config;
+  createClient;
   connect() {
+    if (this.createClient) return this.createClient();
     return new ImapFlow({
       host: this.config.host,
       port: this.config.port,
@@ -2633,12 +2644,39 @@ var ImapMailClient = class {
       await client.logout().catch(() => void 0);
     }
   }
-  async fetchSince(since, limit) {
+  async folders(client) {
+    return (await client.list()).map((box) => ({
+      path: box.path,
+      name: box.name,
+      specialUse: box.specialUse,
+      selectable: !box.flags.has("\\Noselect")
+    }));
+  }
+  async listFolders() {
+    const client = this.connect();
+    try {
+      await client.connect();
+      return await this.folders(client);
+    } catch (error) {
+      throw mailError(error);
+    } finally {
+      await client.logout().catch(() => void 0);
+    }
+  }
+  async resolveFolder(client, requested) {
+    if (requested.toUpperCase() === "INBOX") return "INBOX";
+    const folders = await this.folders(client);
+    const folder = requested.toLowerCase() === "sent" ? folders.find((box) => box.selectable && box.specialUse === "\\Sent") ?? folders.find((box) => box.selectable && /^(sent|sent items|sent messages|已发送|已发送邮件)$/i.test(box.name)) : folders.find((box) => box.path === requested);
+    if (!folder?.selectable) throw new FduError("NOT_FOUND", "\u6CA1\u6709\u627E\u5230\u53EF\u8BFB\u53D6\u7684\u90AE\u7BB1\u6587\u4EF6\u5939\u3002", "\u8FD0\u884C `fdu mail folders`\uFF0C\u5C06\u8FD4\u56DE\u7684 path \u539F\u6837\u4F20\u7ED9 --folder\u3002");
+    return folder.path;
+  }
+  async fetchSince(since, limit, folder = "INBOX") {
     const client = this.connect();
     const out = [];
     try {
       await client.connect();
-      const lock = await client.getMailboxLock("INBOX", { readOnly: true });
+      const path = await this.resolveFolder(client, folder);
+      const lock = await client.getMailboxLock(path, { readOnly: true });
       try {
         const uids = await client.search({ since }, { uid: true }) || [];
         const recent = limit === void 0 ? uids : uids.slice(-Math.max(0, Math.floor(limit)));
@@ -2652,6 +2690,7 @@ var ImapMailClient = class {
             const toList = Array.isArray(parsed.to) ? parsed.to : parsed.to ? [parsed.to] : [];
             out.push({
               uid: String(msg.uid),
+              folder: path,
               messageId: parsed.messageId,
               threadKey: parsed.references && [parsed.references].flat()[0] || parsed.messageId,
               from: { name: from?.name, address: from?.address ?? "" },
@@ -2666,10 +2705,7 @@ var ImapMailClient = class {
         lock.release();
       }
     } catch (error) {
-      const code = error.code;
-      const auth = error.authenticationFailed;
-      if (auth || code === "AUTHENTICATIONFAILED") throw new Error("\u8BF7\u68C0\u67E5\u90AE\u7BB1\u5730\u5740\u3001\u5BA2\u6237\u7AEF\u4E13\u7528\u5BC6\u7801\uFF0C\u5E76\u786E\u8BA4\u7F51\u9875\u90AE\u7BB1\u5DF2\u5F00\u542F IMAP\u3002");
-      throw new Error("\u8BF7\u68C0\u67E5\u90AE\u7BB1\u670D\u52A1\u5668\u3001\u7AEF\u53E3\u548C\u7F51\u7EDC\u8FDE\u63A5\u540E\u91CD\u8BD5\u540C\u6B65\u3002");
+      throw mailError(error);
     } finally {
       await client.logout().catch(() => void 0);
     }
@@ -5579,29 +5615,41 @@ var OPS = [
     }
   }),
   op({
-    name: "mail.list",
-    summary: "\u6536\u4EF6\u7BB1\u91CC\u6700\u8FD1\u7684\u90AE\u4EF6\uFF08\u53D1\u4EF6\u4EBA\u3001\u4E3B\u9898\u3001\u65F6\u95F4\u3001\u6458\u8981\uFF09\uFF1B\u53EA\u8BFB\uFF0C\u4E0D\u6539\u53D8\u5DF2\u8BFB\u72B6\u6001\u3002",
+    name: "mail.folders",
+    summary: "\u5217\u51FA\u90AE\u7BB1\u6587\u4EF6\u5939\u7684\u8DEF\u5F84\u3001\u540D\u79F0\u3001\u7528\u9014\u548C\u662F\u5426\u53EF\u8BFB\u53D6\uFF1B\u53EA\u8BFB\u3002",
     login: "mail",
     effect: "read",
     sensitive: true,
-    params: { days: int2("\u6700\u8FD1\u51E0\u5929\uFF0C\u9ED8\u8BA4 7", 1, 365), limit: int2("\u6700\u591A\u51E0\u5C01\uFF0C\u9ED8\u8BA4 30", 1, 200), query: z3.string().optional().describe("\u53EA\u770B\u53D1\u4EF6\u4EBA\u6216\u4E3B\u9898\u91CC\u5305\u542B\u8FD9\u4E2A\u8BCD\u7684") },
+    params: {},
+    async run(ctx) {
+      return mailClient(ctx).listFolders();
+    }
+  }),
+  op({
+    name: "mail.list",
+    summary: "\u6700\u8FD1\u7684\u90AE\u4EF6\uFF08\u53D1\u4EF6\u4EBA\u3001\u6536\u4EF6\u4EBA\u3001\u4E3B\u9898\u3001\u65F6\u95F4\u3001\u6458\u8981\uFF09\uFF1B\u9ED8\u8BA4\u6536\u4EF6\u7BB1\uFF0C\u652F\u6301\u5DF2\u53D1\u9001\u7B49\u6587\u4EF6\u5939\uFF1B\u4E0D\u6539\u53D8\u5DF2\u8BFB\u72B6\u6001\u3002",
+    login: "mail",
+    effect: "read",
+    sensitive: true,
+    params: { days: int2("\u6700\u8FD1\u51E0\u5929\uFF0C\u9ED8\u8BA4 7", 1, 365), limit: int2("\u6700\u591A\u51E0\u5C01\uFF0C\u9ED8\u8BA4 30", 1, 200), query: z3.string().optional().describe("\u53EA\u770B\u53D1\u4EF6\u4EBA\u3001\u6536\u4EF6\u4EBA\u6216\u4E3B\u9898\u91CC\u5305\u542B\u8FD9\u4E2A\u8BCD\u7684"), folder: z3.string().min(1).optional().describe("\u9ED8\u8BA4 INBOX\uFF1Bsent \u81EA\u52A8\u5B9A\u4F4D\u5DF2\u53D1\u9001\uFF0C\u5176\u4ED6\u8DEF\u5F84\u6765\u81EA mail folders") },
+    examples: ["fdu mail list --days 7", "fdu mail list --folder sent --days 7"],
     async run(ctx, a) {
-      const list2 = await mailClient(ctx).fetchSince(new Date(ctx.now() - (a.days ?? 7) * DAY3), 500);
+      const list2 = await mailClient(ctx).fetchSince(new Date(ctx.now() - (a.days ?? 7) * DAY3), 500, a.folder);
       const q = a.query?.toLowerCase();
-      return list2.filter((m) => !q || `${m.from.name ?? ""} ${m.from.address} ${m.subject}`.toLowerCase().includes(q)).reverse().slice(0, a.limit ?? 30).map((m) => ({ uid: m.uid, from: m.from, subject: m.subject, date: m.date, dateShanghai: shanghaiDate(m.date), snippet: m.text.replace(/\s+/g, " ").slice(0, 200) }));
+      return list2.filter((m) => !q || `${m.from.name ?? ""} ${m.from.address} ${m.to.join(" ")} ${m.subject}`.toLowerCase().includes(q)).reverse().slice(0, a.limit ?? 30).map((m) => ({ uid: m.uid, folder: m.folder, from: m.from, to: m.to, subject: m.subject, date: m.date, dateShanghai: shanghaiDate(m.date), snippet: m.text.replace(/\s+/g, " ").slice(0, 200) }));
     }
   }),
   op({
     name: "mail.read",
-    summary: "\u8BFB\u4E00\u5C01\u90AE\u4EF6\u7684\u6B63\u6587\uFF08\u6309 uid\uFF0C\u6765\u81EA mail list\uFF09\u3002",
+    summary: "\u8BFB\u4E00\u5C01\u90AE\u4EF6\u7684\u6B63\u6587\uFF08\u6309 uid\uFF0C\u6765\u81EA mail list\uFF09\uFF1B\u987B\u6307\u5B9A\u4E0E\u5217\u8868\u76F8\u540C\u7684\u6587\u4EF6\u5939\uFF0C\u9ED8\u8BA4\u6536\u4EF6\u7BB1\u3002",
     login: "mail",
     effect: "read",
     sensitive: true,
     cache: false,
-    params: { uid: z3.string().regex(/^\d+$/), days: int2("\u5728\u6700\u8FD1\u51E0\u5929\u91CC\u627E\uFF0C\u9ED8\u8BA4 30", 1, 365) },
+    params: { uid: z3.string().regex(/^\d+$/).describe("\u6587\u4EF6\u5939\u5185\u7684\u90AE\u4EF6 UID\uFF0C\u6765\u81EA mail list"), days: int2("\u5728\u6700\u8FD1\u51E0\u5929\u91CC\u627E\uFF0C\u9ED8\u8BA4 30", 1, 365), folder: z3.string().min(1).optional().describe("\u9ED8\u8BA4 INBOX\uFF1Bsent \u81EA\u52A8\u5B9A\u4F4D\u5DF2\u53D1\u9001\uFF0C\u5176\u4ED6\u8DEF\u5F84\u6765\u81EA mail folders") },
     async run(ctx, a) {
-      const m = (await mailClient(ctx).fetchSince(new Date(ctx.now() - (a.days ?? 30) * DAY3), 1e3)).find((x) => x.uid === a.uid);
-      if (!m) throw new FduError("NOT_FOUND", `\u6700\u8FD1 ${a.days ?? 30} \u5929\u91CC\u6CA1\u6709\u627E\u5230 uid \u4E3A ${a.uid} \u7684\u90AE\u4EF6\u3002`, "\u7528 --days \u653E\u5BBD\u8303\u56F4\u3002");
+      const m = (await mailClient(ctx).fetchSince(new Date(ctx.now() - (a.days ?? 30) * DAY3), 1e3, a.folder)).find((x) => x.uid === a.uid);
+      if (!m) throw new FduError("NOT_FOUND", `\u6700\u8FD1 ${a.days ?? 30} \u5929\u91CC\u6CA1\u6709\u627E\u5230 uid \u4E3A ${a.uid} \u7684\u90AE\u4EF6\u3002`, "\u786E\u8BA4 --folder \u4E0E mail list \u76F8\u540C\uFF0C\u6216\u7528 --days \u653E\u5BBD\u8303\u56F4\u3002");
       return m;
     }
   })

@@ -25,7 +25,7 @@ description: 查询复旦大学校园服务：eLearning 课程 / 作业 / DDL / 
 
 ## 隐私
 
-- `elearning.assignments`、`jw.grades`、`jw.gpa`、`jw.program`、`card.transactions`、`library.loans`、`library.history`、`mail.list`、`mail.read` 返回隐私数据（消费记录能看出用户的行踪和习惯）：只用来回答用户本人的问题。**不要**写进代码仓库、提交信息、日志、issue / PR，也不要贴到别的服务里。
+- `elearning.assignments`、`jw.grades`、`jw.gpa`、`jw.program`、`card.transactions`、`library.loans`、`library.history`、`mail.folders`、`mail.list`、`mail.read` 返回隐私数据（消费记录能看出用户的行踪和习惯）：只用来回答用户本人的问题。**不要**写进代码仓库、提交信息、日志、issue / PR，也不要贴到别的服务里。
 - 不要把 `~/.config/fdu-cli/`（Windows：`%APPDATA%\fdu-cli\`）里的文件读出来、复制或提交，那是登录凭证。
 - 树洞内容是匿名同学的个人看法：引用时说明来源和洞号，综合多条再下结论，不当作事实。
 
@@ -67,7 +67,7 @@ description: 查询复旦大学校园服务：eLearning 课程 / 作业 / DDL / 
 | 课程口碑 | `fdu danke search --keyword 数据结构` → `fdu danke reviews --id <course_group_id>` |
 | 树洞最新帖子、分区和翻页 | `fdu hole latest --length 5` 默认按发帖时间；`--sort updated` 按最后回复时间。分区先查 `fdu hole divisions`，再传 `--division <id>`。翻页传最后一条的 `createdAt` / `updatedAt` 给 `--before`（与排序对应，须含时区），不能用分钟精度的 `time` 作为精确游标；边界可能重复，按 `hole_id` 去重。旧帖被回复顶起不代表新发布 |
 | 树洞里怎么说 | `fdu hole search --keyword 食堂` → `fdu hole read --id <洞号>` |
-| 最近的邮件 | `fdu mail list --days 3`，正文 `fdu mail read --uid <uid>` |
+| 最近的邮件 | `fdu mail list --days 3`，正文 `fdu mail read --uid <uid>`；已发送加 `--folder sent`，其他文件夹用 `fdu mail folders` 查路径；读取时保持相同文件夹 |
 
 ## 缓存
 

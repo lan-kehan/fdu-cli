@@ -790,9 +790,15 @@ fdu hole latest --division 1 --before 2026-11-01T12:00:00+08:00
 
 登录：不用 · 登录 / 退出 · 仅命令行
 
+### `fdu mail folders`
+
+列出邮箱文件夹的路径、名称、用途和是否可读取；只读。
+
+登录：学生邮箱 · 只读 · **隐私数据** · MCP：`mail_folders`
+
 ### `fdu mail list`
 
-收件箱里最近的邮件（发件人、主题、时间、摘要）；只读，不改变已读状态。
+最近的邮件（发件人、收件人、主题、时间、摘要）；默认收件箱，支持已发送等文件夹；不改变已读状态。
 
 登录：学生邮箱 · 只读 · **隐私数据** · MCP：`mail_list`
 
@@ -800,18 +806,25 @@ fdu hole latest --division 1 --before 2026-11-01T12:00:00+08:00
 |---|---|---|---|
 | `--days` | integer |  | 最近几天，默认 7 |
 | `--limit` | integer |  | 最多几封，默认 30 |
-| `--query` | string |  | 只看发件人或主题里包含这个词的 |
+| `--query` | string |  | 只看发件人、收件人或主题里包含这个词的 |
+| `--folder` | string |  | 默认 INBOX；sent 自动定位已发送，其他路径来自 mail folders |
+
+```bash
+fdu mail list --days 7
+fdu mail list --folder sent --days 7
+```
 
 ### `fdu mail read`
 
-读一封邮件的正文（按 uid，来自 mail list）。
+读一封邮件的正文（按 uid，来自 mail list）；须指定与列表相同的文件夹，默认收件箱。
 
 登录：学生邮箱 · 只读 · **隐私数据** · MCP：`mail_read`
 
 | 参数 | 类型 | 必填 | 说明 |
 |---|---|---|---|
-| `--uid` | string | 是 |  |
+| `--uid` | string | 是 | 文件夹内的邮件 UID，来自 mail list |
 | `--days` | integer |  | 在最近几天里找，默认 30 |
+| `--folder` | string |  | 默认 INBOX；sent 自动定位已发送，其他路径来自 mail folders |
 
 ## 日历
 

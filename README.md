@@ -82,7 +82,7 @@ args = ["mcp"]
 | 校车 | `fdu bus schedule` | 校区间校车时刻表（工作日 / 节假日） | 复旦账号 |
 | 宿舍 | `fdu dorm electricity` | 剩余电量 | 复旦账号 |
 | 树洞、蛋壳课评 | `fdu hole search / read / latest / divisions`、`fdu danke search / reviews` | 树洞（旦挞茶楼）帖子；蛋壳课评（danke.fduhole.com）的课程评分和评价 | 树洞账号 |
-| 学生邮箱 | `fdu mail list / read` | 收件箱（只读，不改已读状态） | 客户端专用密码 |
+| 学生邮箱 | `fdu mail folders / list / read` | 收件箱、已发送及自定义文件夹（只读，不改已读状态） | 客户端专用密码 |
 | 日历 | `fdu calendar export` | 课表、考试、作业截止导出成 .ics，导入苹果日历 / Outlook / Google 日历 | 复旦账号 |
 
 每个命令的参数和示例：`fdu help <服务>`、`fdu help <服务> <命令>`，或者看 [命令参考](skills/fdu-cli/reference.md)。
@@ -269,3 +269,9 @@ npm run docs                 # 改了命令后重新生成命令参考
 ## 许可
 
 MIT
+
+### 邮箱文件夹
+
+`fdu mail folders` 列出文件夹；`fdu mail list --folder sent --days 7` 查看近期已发送邮件。`--folder` 默认 `INBOX`，`sent` 优先按服务器的 `\Sent` 用途定位，其余值使用文件夹的完整 `path`。读正文时使用同一个文件夹：`fdu mail read --folder sent --uid <uid>`。UID 只在文件夹内唯一。
+
+邮件列表新增 `folder`、`to` 字段，正文新增 `folder`，原有字段保留。`--query` 也可匹配收件人地址；列表查询最多检查最近 500 封命中邮件，正文按时间范围最多检查最近 1000 封。所有文件夹均只读打开，不标记已读。

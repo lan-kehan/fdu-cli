@@ -1,9 +1,11 @@
 import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
+import { FduError } from '../core/errors';
 
 export interface MailMessage {
-  /** 邮箱内唯一 ID（INBOX 的 UID） */
+  /** 文件夹内唯一 ID；读取时须使用同一文件夹 */
   uid: string;
+  folder: string;
   messageId?: string;
   threadKey?: string;
   from: { name?: string; address: string };
@@ -14,7 +16,7 @@ export interface MailMessage {
 }
 
 export interface MailClient {
-  fetchSince(since: Date, limit?: number): Promise<MailMessage[]>;
+  fetchSince(since: Date, limit?: number, folder?: string): Promise<MailMessage[]>;
   ping(): Promise<boolean>;
   /**
    * 盯着收件箱：有新邮件时回调（IMAP IDLE，服务器主动通知）。返回停止函数。
@@ -34,11 +36,28 @@ export interface ImapConfig {
 
 export const DEFAULT_FUDAN_STUDENT_IMAP = { host: 'imap.exmail.qq.com', port: 993 };
 
-/** IMAP 只读客户端：只读取 INBOX，不标记已读、不删除、不移动。 */
+export interface MailFolder {
+  path: string;
+  name: string;
+  specialUse?: string;
+  selectable: boolean;
+}
+
+function mailError(error: unknown): FduError {
+  if (error instanceof FduError) return error;
+  const e = error as { code?: string; authenticationFailed?: boolean };
+  if (e.authenticationFailed || e.code === 'AUTHENTICATIONFAILED') {
+    return new FduError('NEED_MAIL_SETUP', '邮箱认证失败。', '检查邮箱地址、客户端专用密码，并确认网页邮箱已开启 IMAP。');
+  }
+  return new FduError('UPSTREAM', '连接或读取邮箱失败。', '检查邮箱服务器、端口和网络连接后重试。');
+}
+
+/** IMAP 只读客户端：不标记已读、不删除、不移动。 */
 export class ImapMailClient implements MailClient {
-  constructor(private readonly config: ImapConfig) {}
+  constructor(private readonly config: ImapConfig, private readonly createClient?: () => ImapFlow) {}
 
   private connect(): ImapFlow {
+    if (this.createClient) return this.createClient();
     return new ImapFlow({
       host: this.config.host,
       port: this.config.port,
@@ -117,13 +136,44 @@ export class ImapMailClient implements MailClient {
     }
   }
 
-  async fetchSince(since: Date, limit?: number): Promise<MailMessage[]> {
+  private async folders(client: ImapFlow): Promise<MailFolder[]> {
+    return (await client.list()).map((box) => ({
+      path: box.path, name: box.name, specialUse: box.specialUse,
+      selectable: !box.flags.has('\\Noselect'),
+    }));
+  }
+
+  async listFolders(): Promise<MailFolder[]> {
+    const client = this.connect();
+    try {
+      await client.connect();
+      return await this.folders(client);
+    } catch (error) {
+      throw mailError(error);
+    } finally {
+      await client.logout().catch(() => undefined);
+    }
+  }
+
+  private async resolveFolder(client: ImapFlow, requested: string): Promise<string> {
+    if (requested.toUpperCase() === 'INBOX') return 'INBOX';
+    const folders = await this.folders(client);
+    const folder = requested.toLowerCase() === 'sent'
+      ? folders.find((box) => box.selectable && box.specialUse === '\\Sent')
+        ?? folders.find((box) => box.selectable && /^(sent|sent items|sent messages|已发送|已发送邮件)$/i.test(box.name))
+      : folders.find((box) => box.path === requested);
+    if (!folder?.selectable) throw new FduError('NOT_FOUND', '没有找到可读取的邮箱文件夹。', '运行 `fdu mail folders`，将返回的 path 原样传给 --folder。');
+    return folder.path;
+  }
+
+  async fetchSince(since: Date, limit?: number, folder = 'INBOX'): Promise<MailMessage[]> {
     const client = this.connect();
     const out: MailMessage[] = [];
     try {
       await client.connect();
+      const path = await this.resolveFolder(client, folder);
       // readOnly：以 EXAMINE 打开，保证不改变邮件状态
-      const lock = await client.getMailboxLock('INBOX', { readOnly: true });
+      const lock = await client.getMailboxLock(path, { readOnly: true });
       try {
         const uids = (await client.search({ since }, { uid: true })) || [];
         // 同步默认读取全部命中邮件，避免截断后推进游标造成永久漏信。
@@ -138,6 +188,7 @@ export class ImapMailClient implements MailClient {
             const toList = Array.isArray(parsed.to) ? parsed.to : parsed.to ? [parsed.to] : [];
             out.push({
               uid: String(msg.uid),
+              folder: path,
               messageId: parsed.messageId,
               threadKey: (parsed.references && [parsed.references].flat()[0]) || parsed.messageId,
               from: { name: from?.name, address: from?.address ?? '' },
@@ -152,10 +203,7 @@ export class ImapMailClient implements MailClient {
         lock.release();
       }
     } catch (error) {
-      const code = (error as { code?: string }).code;
-      const auth = (error as { authenticationFailed?: boolean }).authenticationFailed;
-      if (auth || code === 'AUTHENTICATIONFAILED') throw new Error('请检查邮箱地址、客户端专用密码，并确认网页邮箱已开启 IMAP。');
-      throw new Error('请检查邮箱服务器、端口和网络连接后重试同步。');
+      throw mailError(error);
     } finally {
       await client.logout().catch(() => undefined);
     }

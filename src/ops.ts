@@ -1292,23 +1292,28 @@ export const OPS: Op[] = [
     async run(ctx) { return { removed: ctx.store.remove(MAIL) }; },
   }),
   op({
-    name: 'mail.list', summary: '收件箱里最近的邮件（发件人、主题、时间、摘要）；只读，不改变已读状态。', login: 'mail', effect: 'read', sensitive: true,
-    params: { days: int('最近几天，默认 7', 1, 365), limit: int('最多几封，默认 30', 1, 200), query: z.string().optional().describe('只看发件人或主题里包含这个词的') },
+    name: 'mail.folders', summary: '列出邮箱文件夹的路径、名称、用途和是否可读取；只读。', login: 'mail', effect: 'read', sensitive: true, params: {},
+    async run(ctx) { return mailClient(ctx).listFolders(); },
+  }),
+  op({
+    name: 'mail.list', summary: '最近的邮件（发件人、收件人、主题、时间、摘要）；默认收件箱，支持已发送等文件夹；不改变已读状态。', login: 'mail', effect: 'read', sensitive: true,
+    params: { days: int('最近几天，默认 7', 1, 365), limit: int('最多几封，默认 30', 1, 200), query: z.string().optional().describe('只看发件人、收件人或主题里包含这个词的'), folder: z.string().min(1).optional().describe('默认 INBOX；sent 自动定位已发送，其他路径来自 mail folders') },
+    examples: ['fdu mail list --days 7', 'fdu mail list --folder sent --days 7'],
     async run(ctx, a) {
-      const list = await mailClient(ctx).fetchSince(new Date(ctx.now() - (a.days ?? 7) * DAY), 500);
+      const list = await mailClient(ctx).fetchSince(new Date(ctx.now() - (a.days ?? 7) * DAY), 500, a.folder);
       const q = a.query?.toLowerCase();
       return list
-        .filter((m) => !q || `${m.from.name ?? ''} ${m.from.address} ${m.subject}`.toLowerCase().includes(q))
+        .filter((m) => !q || `${m.from.name ?? ''} ${m.from.address} ${m.to.join(' ')} ${m.subject}`.toLowerCase().includes(q))
         .reverse().slice(0, a.limit ?? 30)
-        .map((m) => ({ uid: m.uid, from: m.from, subject: m.subject, date: m.date, dateShanghai: shanghaiDate(m.date), snippet: m.text.replace(/\s+/g, ' ').slice(0, 200) }));
+        .map((m) => ({ uid: m.uid, folder: m.folder, from: m.from, to: m.to, subject: m.subject, date: m.date, dateShanghai: shanghaiDate(m.date), snippet: m.text.replace(/\s+/g, ' ').slice(0, 200) }));
     },
   }),
   op({
-    name: 'mail.read', summary: '读一封邮件的正文（按 uid，来自 mail list）。', login: 'mail', effect: 'read', sensitive: true, cache: false,
-    params: { uid: z.string().regex(/^\d+$/), days: int('在最近几天里找，默认 30', 1, 365) },
+    name: 'mail.read', summary: '读一封邮件的正文（按 uid，来自 mail list）；须指定与列表相同的文件夹，默认收件箱。', login: 'mail', effect: 'read', sensitive: true, cache: false,
+    params: { uid: z.string().regex(/^\d+$/).describe('文件夹内的邮件 UID，来自 mail list'), days: int('在最近几天里找，默认 30', 1, 365), folder: z.string().min(1).optional().describe('默认 INBOX；sent 自动定位已发送，其他路径来自 mail folders') },
     async run(ctx, a) {
-      const m = (await mailClient(ctx).fetchSince(new Date(ctx.now() - (a.days ?? 30) * DAY), 1000)).find((x) => x.uid === a.uid);
-      if (!m) throw new FduError('NOT_FOUND', `最近 ${a.days ?? 30} 天里没有找到 uid 为 ${a.uid} 的邮件。`, '用 --days 放宽范围。');
+      const m = (await mailClient(ctx).fetchSince(new Date(ctx.now() - (a.days ?? 30) * DAY), 1000, a.folder)).find((x) => x.uid === a.uid);
+      if (!m) throw new FduError('NOT_FOUND', `最近 ${a.days ?? 30} 天里没有找到 uid 为 ${a.uid} 的邮件。`, '确认 --folder 与 mail list 相同，或用 --days 放宽范围。');
       return m;
     },
   }),
