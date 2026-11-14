@@ -5,7 +5,7 @@ description: 查询复旦大学校园服务：eLearning 课程 / 作业 / DDL / 
 
 # 复旦校园服务（fdu-cli）
 
-用 `fdu` 命令行（或同名 MCP 服务的工具）读取用户本人在复旦各系统里的数据。默认对学校系统**只读**；唯一例外是用户明确要求的 `elearning.submit` 作业提交（含上传附件）。不能选课、发帖、发邮件。
+用 `fdu` 命令行（或同名 MCP 服务的工具）读取用户本人在复旦各系统里的数据。默认对学校系统**只读**；例外只有用户明确要求的 `elearning.submit` 作业提交（含上传附件）和 `mail.send` 发邮件。不能选课、发帖。
 
 ## 怎么调用
 
@@ -25,7 +25,7 @@ description: 查询复旦大学校园服务：eLearning 课程 / 作业 / DDL / 
 
 ## 隐私
 
-- `elearning.assignments`、`elearning.grades`、`elearning.inbox`、`jw.grades`、`jw.gpa`、`jw.program`、`card.transactions`、`library.loans`、`library.history`、`mail.folders`、`mail.list`、`mail.read` 返回隐私数据（消费记录能看出用户的行踪和习惯）：只用来回答用户本人的问题。**不要**写进代码仓库、提交信息、日志、issue / PR，也不要贴到别的服务里。
+- `elearning.assignments`、`elearning.grades`、`elearning.inbox`、`jw.grades`、`jw.gpa`、`jw.program`、`card.transactions`、`library.loans`、`library.history`、`mail.folders`、`mail.list`、`mail.read`、`mail.send` 返回隐私数据（消费记录能看出用户的行踪和习惯）：只用来回答用户本人的问题。**不要**写进代码仓库、提交信息、日志、issue / PR，也不要贴到别的服务里。
 - 不要把 `~/.config/fdu-cli/`（Windows：`%APPDATA%\fdu-cli\`）里的文件读出来、复制或提交，那是登录凭证。
 - 树洞内容是匿名同学的个人看法：引用时说明来源和洞号，综合多条再下结论，不当作事实。
 
@@ -71,6 +71,7 @@ description: 查询复旦大学校园服务：eLearning 课程 / 作业 / DDL / 
 | 树洞最新帖子、分区和翻页 | `fdu hole latest --length 5` 默认按发帖时间；`--sort updated` 按最后回复时间。分区先查 `fdu hole divisions`，再传 `--division <id>`。翻页传最后一条的 `createdAt` / `updatedAt` 给 `--before`（与排序对应，须含时区），不能用分钟精度的 `time` 作为精确游标；边界可能重复，按 `hole_id` 去重。旧帖被回复顶起不代表新发布 |
 | 树洞里怎么说 | `fdu hole search --keyword 食堂` → `fdu hole read --id <洞号>` |
 | 最近的邮件 | `fdu mail list --days 3`，正文 `fdu mail read --uid <uid>`；已发送加 `--folder sent`，其他文件夹用 `fdu mail folders` 查路径；读取时保持相同文件夹 |
+| 发邮件 / 回复 | 见下面的「发邮件」：先 `fdu mail send ... --dry-run` 给用户看，再去掉 `--dry-run` 发送 |
 
 ## 缓存
 
@@ -90,3 +91,9 @@ description: 查询复旦大学校园服务：eLearning 课程 / 作业 / DDL / 
 只有用户明确要求提交指定作业和内容时才使用 `fdu elearning submit` / MCP `elearning_submit`。复用 `fdu login` 会话，不需要 Canvas API token。先查课程和作业 id，再用相同参数加 `--dry-run` 预览并向用户说明具体作业、内容/附件及小组影响；已有明确提交授权时可继续执行，不重复索要授权。`--file`、`--text`（HTML）、`--url` 三选一。一次一个文件，最大 200 MB；MCP 文件必须在当前工作目录内。
 
 已有提交需要 `--resubmit`，必须有明确的重交授权；它会占用提交次数。`verified: true` 才表示核验通过。收到 `SUBMISSION_UNKNOWN` 后先核对作业网页的提交记录，不能自动重发；上传成功不等于提交成功。会话过期时运行 `fdu login` 后重新核对状态，命令不在登录后自动重跑。提交内容是隐私数据，不写入仓库或对外发送。
+
+## 发邮件
+
+只有用户明确要求发邮件时才使用 `fdu mail send` / MCP `mail_send`，邮件发出后无法撤回。替用户起草时，先把收件人、主题、正文和附件写清楚，用相同参数加 `--dry-run` 预览给用户确认，用户认可后再去掉 `--dry-run` 发送；不要自行添加收件人。回复某封邮件用 `--reply-uid <uid>`（`--folder` 与 `mail list` 相同），收件人和「Re: 主题」会自动填好。正文长或含特殊字符时写进 UTF-8 文本文件，用 `--text-file` 传入，避免命令行转义问题。
+
+`verified: true` 表示服务器接收了全部收件人；`rejected` 非空时告诉用户哪些地址被拒。收到 `MAIL_UNKNOWN` 时邮件可能已经发出：先用 `fdu mail list --folder sent --days 1` 核对，或请用户看网页邮箱，**不能自动重发**。`NEED_MAIL_SETUP` 时请用户运行 `fdu mail setup` 并确认网页邮箱开启了 IMAP/SMTP。

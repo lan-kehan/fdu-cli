@@ -33,7 +33,7 @@ export function toolDescription(op: Op): string {
     LOGIN_NOTE[op.login],
     op.sensitive ? '返回的是隐私数据（成绩 / 邮件等）：只用来回答用户本人的问题，不要写进代码仓库、提交信息或发给别人。' : '',
     op.effect === 'local-write' ? '会在本机写文件（不覆盖已有文件）。' : '',
-    op.effect === 'remote-write' ? '会向学校系统提交作业并占用提交次数。仅在用户明确要求提交指定作业和内容时执行；先用 dryRun 预览。结果不确定时先核验网页，不能自动重试。' : '',
+    op.effect === 'remote-write' ? (op.remoteNote ?? '会写入学校系统。仅在用户明确要求时执行；先用 dryRun 预览，结果不确定时先核验，不能自动重试。') : '',
   ].filter(Boolean).join('\n');
 }
 

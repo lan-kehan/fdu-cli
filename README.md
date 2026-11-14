@@ -8,7 +8,7 @@
 
 复旦校园服务的命令行和 MCP 服务，给 **Claude Code、Codex** 等 AI 助理用：让它直接查你的课表、作业 DDL、考试、成绩，找空教室、看课程回放文字稿、读教学大纲，查图书馆借阅和校园卡消费，然后替你安排和提建议。
 
-所有命令输出 JSON，默认对学校系统**只读**。唯一的远端写入例外是 `fdu elearning submit`：按用户要求上传附件并提交作业。不选课、不预约、不续借、不发帖、不发邮件。
+所有命令输出 JSON，默认对学校系统**只读**。远端写入只有两个例外，都要用户明确要求：`fdu elearning submit` 上传附件并提交作业，`fdu mail send` 用学生邮箱发信。不选课、不预约、不续借、不发帖。
 
 ## 一分钟上手
 
@@ -82,7 +82,7 @@ args = ["mcp"]
 | 校车 | `fdu bus schedule` | 校区间校车时刻表（工作日 / 节假日） | 复旦账号 |
 | 宿舍 | `fdu dorm electricity` | 剩余电量 | 复旦账号 |
 | 树洞、蛋壳课评 | `fdu hole search / read / latest / divisions`、`fdu danke search / reviews` | 树洞（旦挞茶楼）帖子；蛋壳课评（danke.fduhole.com）的课程评分和评价 | 树洞账号 |
-| 学生邮箱 | `fdu mail folders / list / read` | 收件箱、已发送及自定义文件夹（只读，不改已读状态） | 客户端专用密码 |
+| 学生邮箱 | `fdu mail folders / list / read / send` | 收件箱、已发送及自定义文件夹（只读，不改已读状态）；按要求发信或回复 | 客户端专用密码 |
 | 日历 | `fdu calendar export` | 课表、考试、作业截止导出成 .ics，导入苹果日历 / Outlook / Google 日历 | 复旦账号 |
 
 每个命令的参数和示例：`fdu help <服务>`、`fdu help <服务> <命令>`，或者看 [命令参考](skills/fdu-cli/reference.md)。
@@ -187,7 +187,7 @@ fdu elearning submit --course 456 --assignment 123 --url https://example.com/rep
 | 教室系统 | `fdu rooms login` | 学校多媒体教室的「在线课表」要单独登录一次 |
 | 图书馆借阅 | `fdu library login` | 在打开的图书馆页面里点「登录」，进「我的借阅」后窗口自动关闭 |
 | 树洞 / 蛋壳课评 | `fdu hole login --email 学号@m.fudan.edu.cn` | 密码只用来换令牌，不保存 |
-| 学生邮箱 | `fdu mail setup --user 学号@m.fudan.edu.cn` | 网页邮箱里生成的客户端专用密码（明文保存在本机） |
+| 学生邮箱 | `fdu mail setup --user 学号@m.fudan.edu.cn` | 网页邮箱里生成的客户端专用密码（明文保存在本机）；读信用 IMAP，`fdu mail send` 发信用同一密码走 SMTP |
 
 **登录过期会自动弹窗**：任何命令（包括 AI 通过 MCP 调用时）遇到需要登录，都会直接在你电脑上打开对应的页面。统一身份认证、某些页面要求的二次验证（如微信扫码）、教室系统、图书馆、WebVPN 都一样。你按提示完成后窗口自动关闭，这次查询接着完成，不用切到终端。命令行里最多等 3 分钟；**通过 MCP 调用时最多等 50 秒**（客户端的工具调用一般一分钟左右就超时），等不到时先返回「登录窗口已打开、等你完成」，窗口留着，完成后让 AI 再查一次即可。
 
@@ -292,3 +292,20 @@ MIT
 `fdu mail folders` 列出文件夹；`fdu mail list --folder sent --days 7` 查看近期已发送邮件。`--folder` 默认 `INBOX`，`sent` 优先按服务器的 `\Sent` 用途定位，其余值使用文件夹的完整 `path`。读正文时使用同一个文件夹：`fdu mail read --folder sent --uid <uid>`。UID 只在文件夹内唯一。
 
 邮件列表新增 `folder`、`to` 字段，正文新增 `folder`，原有字段保留。`--query` 也可匹配收件人地址；列表查询最多检查最近 500 封命中邮件，正文按时间范围最多检查最近 1000 封。所有文件夹均只读打开，不标记已读。
+
+### 发送邮件
+
+`fdu mail send` 用 `fdu mail setup` 保存的学生邮箱和客户端专用密码，通过 SMTP（默认 `smtp.exmail.qq.com:465`，SSL）发一封纯文本邮件。命令行和 MCP（`mail_send`）均可用。
+
+```bash
+fdu mail send --to teacher@fudan.edu.cn --subject 请假申请 --text-file ./请假.txt --dry-run
+fdu mail send --to teacher@fudan.edu.cn --cc ta@fudan.edu.cn --subject 作业 --text '老师好，附件是我的作业。' --file ./作业.pdf --from-name 张三
+fdu mail send --reply-uid 123 --text '收到，谢谢老师！'            # 回复收件箱里 uid 为 123 的邮件
+```
+
+- `--to` / `--cc` / `--bcc` 只写纯地址，多个用逗号分隔；三者合计最多 30 个，不做群发。正文用 `--text` 或 `--text-file`（UTF-8，最大 1 MB）二选一；附件 `--file` 一个，最大 20 MB。MCP 只允许读取当前工作目录内的文件。
+- `--reply-uid`（配合 `--folder`、`--days`，与 `mail list` 相同）会先只读找到原邮件：没写 `--to` 时回给原发件人，没写 `--subject` 时用「Re: 原主题」，并带上 `In-Reply-To` / `References`。
+- `--dry-run` 只检查参数并返回预览（发件人、收件人、主题、正文、附件名和大小、服务器），不连接发信服务器。
+- 发送只尝试一次，不自动重试。返回 `accepted` / `rejected` 收件人和 `messageId`；服务器接收了全部收件人才返回 `verified: true`（是否进入对方收件箱仍取决于对方服务器）。连接、认证或收件人被拒时邮件确定没有发出（`UPSTREAM` / `NEED_MAIL_SETUP` / `BAD_ARGS`）；在传输正文时出错返回 `MAIL_UNKNOWN`：先在「已发送」或网页邮箱里核对，不能直接重发。
+- 是否在「已发送」里留存取决于网页邮箱的设置（企业邮可在设置里开启「SMTP 发信后保存到服务器」）。
+- 默认服务器之外的 SMTP 可在配置时指定：`fdu mail setup --user ... --smtp-host smtp.example.com --smtp-port 465`（465 用 SSL，其他端口要求 STARTTLS）。`mail.json` 新增可选字段 `smtpHost`、`smtpPort`，旧配置不用改。

@@ -2,6 +2,8 @@
 
 ## 未发布
 
+- 新增 `fdu mail send` / MCP `mail_send`：用学生邮箱（SMTP，默认 `smtp.exmail.qq.com:465`，复用客户端专用密码）发纯文本邮件，支持抄送、密送、一个附件、`--text-file` 正文和按 uid 回复（带 `In-Reply-To` / `References`）。`--dry-run` 只预览不连接；发送只尝试一次，报告 `accepted` / `rejected` / `verified`；结果不明时返回新错误码 `MAIL_UNKNOWN`。`fdu mail setup` 新增 `--smtp-host`、`--smtp-port`。发邮件成为默认只读约定的第二个远端写入例外；新增依赖 `nodemailer`。
+
 - 新增只读 `fdu elearning grades`、`fdu elearning discussions`、`fdu elearning inbox`（CLI/MCP 共用）：各门课在 eLearning 上的当前总评，以及单门课的作业组权重、每项得分和班级统计；课程讨论区的主题和树状回帖；站内信会话和消息。不标已读、不发帖、不回复；`elearning.grades` 和 `elearning.inbox` 标为隐私数据。
 
 - 修正 `hole.latest`：默认明确按发帖时间排序，支持 `--sort updated`、`--division` 和 `--before` 时间游标，严格限制 1–50 条并去重，缓存缩短为 5 分钟。新增 `hole.divisions`；帖子对象新增原始 `createdAt` / `updatedAt`，保留原字段和数组输出。

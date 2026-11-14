@@ -55,7 +55,7 @@ describe('操作表', () => {
       expect(o.name).toMatch(/^[a-z]+\.[a-z]+$/);
       expect(o.summary.length).toBeGreaterThan(5);
     }
-    expect(OPS.filter((o) => o.sensitive).map((o) => o.name).sort()).toEqual(['auth.export', 'card.transactions', 'elearning.assignments', 'elearning.grades', 'elearning.inbox', 'elearning.submit', 'jw.gpa', 'jw.grades', 'jw.program', 'library.history', 'library.loans', 'mail.folders', 'mail.list', 'mail.read']);
+    expect(OPS.filter((o) => o.sensitive).map((o) => o.name).sort()).toEqual(['auth.export', 'card.transactions', 'elearning.assignments', 'elearning.grades', 'elearning.inbox', 'elearning.submit', 'jw.gpa', 'jw.grades', 'jw.program', 'library.history', 'library.loans', 'mail.folders', 'mail.list', 'mail.read', 'mail.send']);
   });
 
   it('需要在终端输入密码的、删除本地状态的不开放给 MCP；其余都能生成参数表', () => {

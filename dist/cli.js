@@ -3045,6 +3045,127 @@ var ImapMailClient = class {
   }
 };
 
+// src/services/mail-send.ts
+import { createTransport } from "nodemailer";
+var DEFAULT_FUDAN_STUDENT_SMTP = { host: "smtp.exmail.qq.com", port: 465 };
+var MAX_MAIL_ATTACHMENT_BYTES = 20 * 1024 * 1024;
+var MAX_MAIL_RECIPIENTS = 30;
+var MAX_MAIL_TEXT_CHARS = 1e5;
+var ADDRESS = /^[^\s@<>(),;:"[\]\\]+@[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)+$/;
+function parseAddresses(value, flag2) {
+  if (value === void 0) return [];
+  const list2 = value.split(/[,;，；\s]+/).map((s) => s.trim()).filter(Boolean);
+  const bad2 = list2.filter((a) => !ADDRESS.test(a));
+  if (bad2.length) throw new FduError("BAD_ARGS", `${flag2} \u91CC\u6709\u65E0\u6548\u7684\u90AE\u7BB1\u5730\u5740\uFF1A${bad2.slice(0, 3).join("\u3001")}\u3002`, "\u53EA\u5199\u7EAF\u5730\u5740\uFF08\u5982 someone@fudan.edu.cn\uFF09\uFF0C\u591A\u4E2A\u5730\u5740\u7528\u9017\u53F7\u5206\u9694\uFF0C\u4E0D\u8981\u5199\u663E\u793A\u540D\u3002");
+  return list2;
+}
+var address = (a) => typeof a === "string" ? a : a?.address ?? String(a);
+function checkOutgoing(mail) {
+  const all = [...mail.to, ...mail.cc, ...mail.bcc].map((a) => a.toLowerCase());
+  if (!mail.to.length) throw new FduError("BAD_ARGS", "\u81F3\u5C11\u8981\u6709\u4E00\u4E2A\u6536\u4EF6\u4EBA\u3002", "\u7528 --to \u6307\u5B9A\u6536\u4EF6\u4EBA\uFF1B\u56DE\u590D\u90AE\u4EF6\u65F6\u53EF\u4EE5\u7528 --reply-uid \u81EA\u52A8\u586B\u5199\u3002");
+  if (new Set(all).size !== all.length) throw new FduError("BAD_ARGS", "\u540C\u4E00\u4E2A\u5730\u5740\u5728\u6536\u4EF6\u4EBA\u3001\u6284\u9001\u3001\u5BC6\u9001\u91CC\u51FA\u73B0\u4E86\u4E0D\u6B62\u4E00\u6B21\u3002", "\u53BB\u6389\u91CD\u590D\u7684\u5730\u5740\u3002");
+  if (all.length > MAX_MAIL_RECIPIENTS) throw new FduError("BAD_ARGS", `\u6536\u4EF6\u4EBA\u3001\u6284\u9001\u3001\u5BC6\u9001\u5408\u8BA1\u4E0D\u80FD\u8D85\u8FC7 ${MAX_MAIL_RECIPIENTS} \u4E2A\u3002`, "fdu \u53EA\u7528\u6765\u53D1\u4E2A\u4EBA\u90AE\u4EF6\uFF0C\u4E0D\u505A\u7FA4\u53D1\u3002");
+  if (!mail.subject.trim()) throw new FduError("BAD_ARGS", "\u4E3B\u9898\u4E0D\u80FD\u4E3A\u7A7A\u3002", "\u7528 --subject \u5199\u4E3B\u9898\u3002");
+  if (/[\r\n]/.test(mail.subject) || mail.subject.length > 300) throw new FduError("BAD_ARGS", "\u4E3B\u9898\u4E0D\u80FD\u6362\u884C\uFF0C\u4E5F\u4E0D\u80FD\u8D85\u8FC7 300 \u4E2A\u5B57\u7B26\u3002", "\u628A\u4E3B\u9898\u6539\u77ED\uFF0C\u5199\u5728\u4E00\u884C\u91CC\u3002");
+  if (mail.fromName !== void 0 && (/[\r\n"<>]/.test(mail.fromName) || mail.fromName.length > 60)) throw new FduError("BAD_ARGS", "\u53D1\u4EF6\u4EBA\u663E\u793A\u540D\u4E0D\u80FD\u6362\u884C\u3001\u4E0D\u80FD\u542B\u5F15\u53F7\u6216\u5C16\u62EC\u53F7\uFF0C\u4E5F\u4E0D\u80FD\u8D85\u8FC7 60 \u4E2A\u5B57\u7B26\u3002", "\u6539\u7528\u7B80\u5355\u7684\u540D\u5B57\uFF0C\u6216\u4E0D\u5199 --from-name\u3002");
+  if (!mail.text.trim()) throw new FduError("BAD_ARGS", "\u6B63\u6587\u4E0D\u80FD\u4E3A\u7A7A\u3002", "\u7528 --text \u6216 --text-file \u5199\u6B63\u6587\u3002");
+  if (mail.text.length > MAX_MAIL_TEXT_CHARS) throw new FduError("BAD_ARGS", `\u6B63\u6587\u4E0D\u80FD\u8D85\u8FC7 ${MAX_MAIL_TEXT_CHARS} \u4E2A\u5B57\u7B26\u3002`, "\u957F\u5185\u5BB9\u6539\u7528\u9644\u4EF6\uFF08--file\uFF09\u3002");
+  if (mail.attachment && mail.attachment.data.byteLength > MAX_MAIL_ATTACHMENT_BYTES) throw new FduError("BAD_ARGS", "\u9644\u4EF6\u4E0D\u80FD\u8D85\u8FC7 20 MB\u3002", "\u5927\u6587\u4EF6\u8BF7\u7528\u7F51\u9875\u90AE\u7BB1\u7684\u8D85\u5927\u9644\u4EF6\u6216\u7F51\u76D8\u94FE\u63A5\u3002");
+}
+var BEFORE_DATA = /^(CONN|EHLO|HELO|LHLO|STARTTLS|AUTH|MAIL FROM|RCPT TO)/i;
+var NOT_SENT_CODES = /* @__PURE__ */ new Set(["EAUTH", "ECONNECTION", "EDNS", "ETLS", "EENVELOPE", "EMESSAGE"]);
+function sendError(error, user) {
+  if (error instanceof FduError) return error;
+  const e = error;
+  const code = e.responseCode ? `\uFF08SMTP ${e.responseCode}\uFF09` : "";
+  if (e.code === "EAUTH") return new FduError("NEED_MAIL_SETUP", `\u90AE\u7BB1\u53D1\u4FE1\u8BA4\u8BC1\u5931\u8D25${code}\uFF0C\u90AE\u4EF6\u6CA1\u6709\u53D1\u51FA\u3002`, `\u786E\u8BA4 ${user} \u7684\u5BA2\u6237\u7AEF\u4E13\u7528\u5BC6\u7801\u4ECD\u6709\u6548\uFF0C\u5E76\u5728\u7F51\u9875\u90AE\u7BB1\u8BBE\u7F6E\u91CC\u5F00\u542F\u4E86 IMAP/SMTP \u670D\u52A1\uFF1B\u9700\u8981\u65F6\u91CD\u65B0\u8FD0\u884C \`fdu mail setup --user ${user}\`\u3002`);
+  if (e.code === "EENVELOPE") return new FduError("BAD_ARGS", `\u670D\u52A1\u5668\u62D2\u7EDD\u4E86\u6536\u4EF6\u4EBA\u6216\u53D1\u4EF6\u4EBA${code}\uFF0C\u90AE\u4EF6\u6CA1\u6709\u53D1\u51FA\u3002`, "\u68C0\u67E5\u6536\u4EF6\u4EBA\u5730\u5740\u662F\u5426\u62FC\u5199\u6B63\u786E\uFF1B\u5916\u90E8\u57DF\u540D\u88AB\u62D2\u65F6\u53EF\u5728\u7F51\u9875\u90AE\u7BB1\u786E\u8BA4\u53D1\u4FE1\u6743\u9650\u3002");
+  if (e.code === "EMESSAGE") return new FduError("BAD_ARGS", "\u90AE\u4EF6\u5185\u5BB9\u65E0\u6CD5\u751F\u6210\uFF0C\u90AE\u4EF6\u6CA1\u6709\u53D1\u51FA\u3002", "\u68C0\u67E5\u4E3B\u9898\u3001\u6B63\u6587\u548C\u9644\u4EF6\u3002");
+  if (NOT_SENT_CODES.has(e.code ?? "") || BEFORE_DATA.test(e.command ?? "")) {
+    return new FduError("UPSTREAM", `\u8FDE\u63A5\u53D1\u4FE1\u670D\u52A1\u5668\u5931\u8D25${code}\uFF0C\u90AE\u4EF6\u6CA1\u6709\u53D1\u51FA\u3002`, "\u68C0\u67E5\u7F51\u7EDC\u3001\u53D1\u4FE1\u670D\u52A1\u5668\u548C\u7AEF\u53E3\uFF08\u9ED8\u8BA4 smtp.exmail.qq.com:465\uFF09\u540E\u518D\u53D1\u3002");
+  }
+  return new FduError("MAIL_UNKNOWN", `\u5DF2\u5C1D\u8BD5\u53D1\u9001\u90AE\u4EF6\uFF0C\u4F46\u65E0\u6CD5\u786E\u8BA4\u670D\u52A1\u5668\u662F\u5426\u63A5\u6536${code}\uFF1B\u6CA1\u6709\u81EA\u52A8\u91CD\u8BD5\u3002`, "\u5148\u8FD0\u884C `fdu mail list --folder sent --days 1` \u6216\u5728\u7F51\u9875\u90AE\u7BB1\u7684\u300C\u5DF2\u53D1\u9001\u300D\u91CC\u6838\u5BF9\uFF0C\u786E\u8BA4\u6CA1\u6709\u53D1\u51FA\u540E\u518D\u91CD\u53D1\uFF0C\u907F\u514D\u5BF9\u65B9\u6536\u5230\u4E24\u5C01\u3002");
+}
+var SmtpMailSender = class {
+  constructor(config, createClient) {
+    this.config = config;
+    this.createClient = createClient;
+  }
+  config;
+  createClient;
+  connect() {
+    if (this.createClient) return this.createClient();
+    return createTransport({
+      host: this.config.host,
+      port: this.config.port,
+      secure: this.config.port === 465,
+      requireTLS: this.config.port !== 465,
+      auth: { user: this.config.user, pass: this.config.password },
+      connectionTimeout: 2e4,
+      greetingTimeout: 2e4,
+      socketTimeout: 6e4,
+      // 附件只来自内存里的数据，不让邮件内容去读本机文件或抓取网址
+      disableFileAccess: true,
+      disableUrlAccess: true,
+      logger: false
+    });
+  }
+  preview(mail) {
+    checkOutgoing(mail);
+    return {
+      from: mail.fromName ? `${mail.fromName} <${this.config.user}>` : this.config.user,
+      to: mail.to,
+      cc: mail.cc,
+      bcc: mail.bcc,
+      subject: mail.subject,
+      text: mail.text,
+      attachment: mail.attachment ? { name: mail.attachment.name, bytes: mail.attachment.data.byteLength } : null,
+      inReplyTo: mail.inReplyTo ?? null,
+      server: `${this.config.host}:${this.config.port}`
+    };
+  }
+  async send(mail, opts = {}) {
+    const preview = this.preview(mail);
+    if (opts.dryRun) return { dryRun: true, sent: false, ...preview };
+    const client = this.connect();
+    let info;
+    try {
+      info = await client.sendMail({
+        from: mail.fromName ? { name: mail.fromName, address: this.config.user } : this.config.user,
+        to: mail.to,
+        ...mail.cc.length ? { cc: mail.cc } : {},
+        ...mail.bcc.length ? { bcc: mail.bcc } : {},
+        subject: mail.subject,
+        text: mail.text,
+        ...mail.attachment ? { attachments: [{ filename: mail.attachment.name, content: Buffer.from(mail.attachment.data) }] } : {},
+        ...mail.inReplyTo ? { inReplyTo: mail.inReplyTo, references: mail.references?.length ? mail.references : [mail.inReplyTo] } : {}
+      });
+    } catch (error) {
+      throw sendError(error, this.config.user);
+    } finally {
+      try {
+        client.close?.();
+      } catch {
+      }
+    }
+    const accepted = (info.accepted ?? []).map(address);
+    const rejected = (info.rejected ?? []).map(address);
+    const wanted = [...mail.to, ...mail.cc, ...mail.bcc].map((a) => a.toLowerCase());
+    const acceptedSet = new Set(accepted.map((a) => a.toLowerCase()));
+    return {
+      dryRun: false,
+      sent: accepted.length > 0,
+      // 只有服务器明确接收了全部收件人才算核验通过；送达对方信箱仍取决于对方服务器
+      verified: rejected.length === 0 && wanted.every((a) => acceptedSet.has(a)),
+      messageId: info.messageId ?? null,
+      accepted,
+      rejected,
+      response: info.response ?? null,
+      ...preview
+    };
+  }
+};
+
 // src/services/notice-parse.ts
 import { load as load7 } from "cheerio";
 var ROW = "li, tr, dd, dl, article, .news, .item, .list-item, .news_list > div, .list > div";
@@ -4467,25 +4588,26 @@ var int2 = (description, min = 1, max = 1e3) => z5.preprocess(
 var DAY3 = 864e5;
 var shanghaiDate = (iso) => iso ? new Date(iso).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false }) : void 0;
 var elearning = (ctx) => new CanvasClient(sessionAuth(ctx.session));
-function readSubmissionFile(ctx, file) {
+function readLocalFile(ctx, file, limit) {
   let fd;
   try {
     const path = realpathSync(resolve(ctx.cwd, file));
     const rel = relative(realpathSync(ctx.cwd), path);
     if (ctx.mcp && (rel === ".." || rel.startsWith("../") || rel.startsWith("..\\") || isAbsolute(rel))) {
-      throw new FduError("BAD_ARGS", "MCP \u53EA\u80FD\u4E0A\u4F20\u5F53\u524D\u76EE\u5F55\u5185\u7684\u6587\u4EF6\uFF08\u5305\u62EC\u7B26\u53F7\u94FE\u63A5\u6307\u5411\u7684\u6587\u4EF6\uFF09\u3002", "\u628A\u5F85\u63D0\u4EA4\u6587\u4EF6\u653E\u5230\u5F53\u524D\u5DE5\u4F5C\u76EE\u5F55\u5185\u3002");
+      throw new FduError("BAD_ARGS", `MCP \u53EA\u80FD\u8BFB\u53D6\u5F53\u524D\u76EE\u5F55\u5185\u7684${limit.what}\uFF08\u5305\u62EC\u7B26\u53F7\u94FE\u63A5\u6307\u5411\u7684\u6587\u4EF6\uFF09\u3002`, `\u628A${limit.what}\u653E\u5230\u5F53\u524D\u5DE5\u4F5C\u76EE\u5F55\u5185\u3002`);
     }
     fd = openSync(path, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK);
     const stat = fstatSync(fd);
-    if (!stat.isFile() || stat.size === 0 || stat.size > MAX_SUBMISSION_BYTES) throw new FduError("BAD_ARGS", "\u8BF7\u9009\u62E9\u975E\u7A7A\u666E\u901A\u6587\u4EF6\uFF0C\u5927\u5C0F\u4E0D\u80FD\u8D85\u8FC7 200 MB\u3002", "\u68C0\u67E5 --file \u6307\u5B9A\u7684\u8DEF\u5F84\u548C\u6587\u4EF6\u5927\u5C0F\u3002");
+    if (!stat.isFile() || stat.size === 0 || stat.size > limit.maxBytes) throw new FduError("BAD_ARGS", `\u8BF7\u9009\u62E9\u975E\u7A7A\u666E\u901A\u6587\u4EF6\uFF0C\u5927\u5C0F\u4E0D\u80FD\u8D85\u8FC7 ${Math.round(limit.maxBytes / 1024 / 1024)} MB\u3002`, `\u68C0\u67E5 ${limit.flag} \u6307\u5B9A\u7684\u8DEF\u5F84\u548C\u6587\u4EF6\u5927\u5C0F\u3002`);
     return { name: basename(path), data: new Uint8Array(readFileSync2(fd)) };
   } catch (e) {
     if (e instanceof FduError) throw e;
-    throw new FduError("BAD_ARGS", "\u65E0\u6CD5\u8BFB\u53D6\u5F85\u63D0\u4EA4\u7684\u6587\u4EF6\u3002", "\u68C0\u67E5 --file \u8DEF\u5F84\u662F\u5426\u5B58\u5728\uFF0C\u4EE5\u53CA\u5F53\u524D\u7528\u6237\u662F\u5426\u6709\u8BFB\u53D6\u6743\u9650\u3002");
+    throw new FduError("BAD_ARGS", `\u65E0\u6CD5\u8BFB\u53D6${limit.what}\u3002`, `\u68C0\u67E5 ${limit.flag} \u8DEF\u5F84\u662F\u5426\u5B58\u5728\uFF0C\u4EE5\u53CA\u5F53\u524D\u7528\u6237\u662F\u5426\u6709\u8BFB\u53D6\u6743\u9650\u3002`);
   } finally {
     if (fd !== void 0) closeSync(fd);
   }
 }
+var readSubmissionFile = (ctx, file) => readLocalFile(ctx, file, { maxBytes: MAX_SUBMISSION_BYTES, flag: "--file", what: "\u5F85\u63D0\u4EA4\u7684\u6587\u4EF6" });
 async function resolveCourses(ctx, query) {
   const courses = await elearning(ctx).listCourses();
   if (!query) return courses;
@@ -4548,10 +4670,17 @@ function treehole(ctx) {
     now: ctx.now
   });
 }
-function mailClient(ctx) {
+function mailConfig(ctx) {
   const cfg = ctx.store.readJson(MAIL);
   if (!cfg?.user || !cfg.password) throw new FduError("NEED_MAIL_SETUP", "\u8FD8\u6CA1\u6709\u914D\u7F6E\u5B66\u751F\u90AE\u7BB1\u3002", "\u8FD0\u884C `fdu mail setup --user \u5B66\u53F7@m.fudan.edu.cn`\uFF0C\u8F93\u5165\u7F51\u9875\u90AE\u7BB1\u91CC\u751F\u6210\u7684\u5BA2\u6237\u7AEF\u4E13\u7528\u5BC6\u7801\u3002");
-  return new ImapMailClient(cfg);
+  return cfg;
+}
+function mailClient(ctx) {
+  return new ImapMailClient(mailConfig(ctx));
+}
+function mailSender(ctx) {
+  const cfg = mailConfig(ctx);
+  return new SmtpMailSender({ host: cfg.smtpHost ?? DEFAULT_FUDAN_STUDENT_SMTP.host, port: cfg.smtpPort ?? DEFAULT_FUDAN_STUDENT_SMTP.port, user: cfg.user, password: cfg.password });
 }
 function icourse(ctx) {
   if (!ctx.session.hasState()) throw new NeedLoginError("icourse");
@@ -5089,6 +5218,7 @@ var OPS = [
     effect: "remote-write",
     sensitive: true,
     cache: false,
+    remoteNote: "\u4F1A\u5411\u5B66\u6821\u7CFB\u7EDF\u63D0\u4EA4\u4F5C\u4E1A\u5E76\u5360\u7528\u63D0\u4EA4\u6B21\u6570\u3002\u4EC5\u5728\u7528\u6237\u660E\u786E\u8981\u6C42\u63D0\u4EA4\u6307\u5B9A\u4F5C\u4E1A\u548C\u5185\u5BB9\u65F6\u6267\u884C\uFF1B\u5148\u7528 dryRun \u9884\u89C8\u3002\u7ED3\u679C\u4E0D\u786E\u5B9A\u65F6\u5148\u6838\u9A8C\u7F51\u9875\uFF0C\u4E0D\u80FD\u81EA\u52A8\u91CD\u8BD5\u3002",
     params: {
       course: z5.string().min(1).describe("\u8BFE\u7A0B id \u6216\u552F\u4E00\u540D\u79F0\u5173\u952E\u8BCD"),
       assignment: z5.string().regex(/^[1-9]\d*$/).describe("\u4F5C\u4E1A id\uFF0C\u6765\u81EA elearning assignments"),
@@ -5981,14 +6111,20 @@ var OPS = [
   // ======================= 学生邮箱 =======================
   op({
     name: "mail.setup",
-    summary: "\u914D\u7F6E\u5B66\u751F\u90AE\u7BB1\uFF08IMAP\uFF0C\u53EA\u8BFB\uFF09\uFF1A\u9700\u8981\u7F51\u9875\u90AE\u7BB1\u91CC\u751F\u6210\u7684\u5BA2\u6237\u7AEF\u4E13\u7528\u5BC6\u7801\uFF1B\u5BC6\u7801\u4EE5\u660E\u6587\u4FDD\u5B58\u5728\u672C\u673A\u914D\u7F6E\u76EE\u5F55\uFF08\u6743\u9650 600\uFF09\u3002",
+    summary: "\u914D\u7F6E\u5B66\u751F\u90AE\u7BB1\uFF08IMAP \u8BFB\u4FE1\uFF0CSMTP \u4F9B mail send \u53D1\u4FE1\uFF09\uFF1A\u9700\u8981\u7F51\u9875\u90AE\u7BB1\u91CC\u751F\u6210\u7684\u5BA2\u6237\u7AEF\u4E13\u7528\u5BC6\u7801\uFF1B\u5BC6\u7801\u4EE5\u660E\u6587\u4FDD\u5B58\u5728\u672C\u673A\u914D\u7F6E\u76EE\u5F55\uFF08\u6743\u9650 600\uFF09\u3002",
     login: "none",
     effect: "auth",
     mcp: false,
-    params: { user: z5.string().email().describe("\u90AE\u7BB1\u5730\u5740"), host: z5.string().optional().describe(`IMAP \u670D\u52A1\u5668\uFF0C\u9ED8\u8BA4 ${DEFAULT_FUDAN_STUDENT_IMAP.host}`), port: int2("\u7AEF\u53E3\uFF0C\u9ED8\u8BA4 993", 1, 65535) },
+    params: {
+      user: z5.string().email().describe("\u90AE\u7BB1\u5730\u5740"),
+      host: z5.string().optional().describe(`IMAP \u670D\u52A1\u5668\uFF0C\u9ED8\u8BA4 ${DEFAULT_FUDAN_STUDENT_IMAP.host}`),
+      port: int2("\u7AEF\u53E3\uFF0C\u9ED8\u8BA4 993", 1, 65535),
+      smtpHost: z5.string().optional().describe(`SMTP \u53D1\u4FE1\u670D\u52A1\u5668\uFF0C\u9ED8\u8BA4 ${DEFAULT_FUDAN_STUDENT_SMTP.host}`),
+      smtpPort: int2(`SMTP \u7AEF\u53E3\uFF0C\u9ED8\u8BA4 ${DEFAULT_FUDAN_STUDENT_SMTP.port}\uFF08465 \u7528 SSL\uFF0C\u5176\u4ED6\u7AEF\u53E3\u8981\u6C42 STARTTLS\uFF09`, 1, 65535)
+    },
     async run(ctx, a) {
       const password = await needPrompt(ctx)("\u5BA2\u6237\u7AEF\u4E13\u7528\u5BC6\u7801\uFF08\u4E0D\u4F1A\u663E\u793A\uFF09\uFF1A", { hidden: true });
-      const cfg = { host: a.host ?? DEFAULT_FUDAN_STUDENT_IMAP.host, port: a.port ?? DEFAULT_FUDAN_STUDENT_IMAP.port, user: a.user, password };
+      const cfg = { host: a.host ?? DEFAULT_FUDAN_STUDENT_IMAP.host, port: a.port ?? DEFAULT_FUDAN_STUDENT_IMAP.port, user: a.user, password, ...a.smtpHost ? { smtpHost: a.smtpHost } : {}, ...a.smtpPort ? { smtpPort: a.smtpPort } : {} };
       if (!await new ImapMailClient(cfg).ping()) throw new FduError("NEED_MAIL_SETUP", "\u8FDE\u4E0D\u4E0A\u90AE\u7BB1\u3002", "\u68C0\u67E5\u90AE\u7BB1\u5730\u5740\u3001\u5BA2\u6237\u7AEF\u4E13\u7528\u5BC6\u7801\uFF0C\u5E76\u786E\u8BA4\u7F51\u9875\u90AE\u7BB1\u5DF2\u5F00\u542F IMAP\u3002");
       ctx.store.writeJson(MAIL, cfg);
       return { configured: true, user: cfg.user, file: ctx.store.path(MAIL) };
@@ -6042,6 +6178,77 @@ var OPS = [
       const m = (await mailClient(ctx).fetchSince(new Date(ctx.now() - (a.days ?? 30) * DAY3), 1e3, a.folder)).find((x) => x.uid === a.uid);
       if (!m) throw new FduError("NOT_FOUND", `\u6700\u8FD1 ${a.days ?? 30} \u5929\u91CC\u6CA1\u6709\u627E\u5230 uid \u4E3A ${a.uid} \u7684\u90AE\u4EF6\u3002`, "\u786E\u8BA4 --folder \u4E0E mail list \u76F8\u540C\uFF0C\u6216\u7528 --days \u653E\u5BBD\u8303\u56F4\u3002");
       return m;
+    }
+  }),
+  op({
+    name: "mail.send",
+    summary: "\u7528\u5B66\u751F\u90AE\u7BB1\u53D1\u4E00\u5C01\u7EAF\u6587\u672C\u90AE\u4EF6\uFF08\u53EF\u5E26\u4E00\u4E2A\u9644\u4EF6\uFF0C\u6216\u6309 uid \u56DE\u590D\uFF09\uFF1A--dry-run \u4EC5\u9884\u89C8\uFF1B\u53D1\u51FA\u540E\u62A5\u544A\u670D\u52A1\u5668\u63A5\u6536\u7ED3\u679C\uFF0C\u4E0D\u81EA\u52A8\u91CD\u53D1\u3002",
+    login: "mail",
+    effect: "remote-write",
+    sensitive: true,
+    cache: false,
+    remoteNote: "\u4F1A\u4EE5\u7528\u6237\u672C\u4EBA\u7684\u5B66\u751F\u90AE\u7BB1\u5411\u4ED6\u4EBA\u53D1\u9001\u90AE\u4EF6\uFF0C\u53D1\u51FA\u540E\u65E0\u6CD5\u64A4\u56DE\u3002\u4EC5\u5728\u7528\u6237\u660E\u786E\u8981\u6C42\u53D1\u9001\u3001\u5E76\u786E\u8BA4\u8FC7\u6536\u4EF6\u4EBA\u548C\u5185\u5BB9\u65F6\u6267\u884C\uFF1B\u5148\u7528 dryRun \u9884\u89C8\u7ED9\u7528\u6237\u770B\u3002\u7ED3\u679C\u4E0D\u786E\u5B9A\uFF08MAIL_UNKNOWN\uFF09\u65F6\u5148\u6838\u5BF9\u5DF2\u53D1\u9001\uFF0C\u4E0D\u80FD\u81EA\u52A8\u91CD\u53D1\u3002",
+    params: {
+      to: z5.string().min(1).optional().describe("\u6536\u4EF6\u4EBA\uFF0C\u591A\u4E2A\u7528\u9017\u53F7\u5206\u9694\uFF1B\u7528 replyUid \u56DE\u590D\u65F6\u9ED8\u8BA4\u662F\u539F\u53D1\u4EF6\u4EBA"),
+      cc: z5.string().min(1).optional().describe("\u6284\u9001\uFF0C\u591A\u4E2A\u7528\u9017\u53F7\u5206\u9694"),
+      bcc: z5.string().min(1).optional().describe("\u5BC6\u9001\uFF0C\u591A\u4E2A\u7528\u9017\u53F7\u5206\u9694"),
+      subject: z5.string().min(1).optional().describe("\u4E3B\u9898\uFF1B\u7528 replyUid \u56DE\u590D\u65F6\u9ED8\u8BA4\u662F\u300CRe: \u539F\u4E3B\u9898\u300D"),
+      text: z5.string().min(1).optional().describe("\u6B63\u6587\uFF08\u7EAF\u6587\u672C\uFF09\uFF0C\u4E0E textFile \u4E8C\u9009\u4E00"),
+      textFile: z5.string().min(1).optional().describe("\u4ECE UTF-8 \u6587\u672C\u6587\u4EF6\u8BFB\u6B63\u6587\uFF08\u6700\u5927 1 MB\uFF09\uFF0C\u4E0E text \u4E8C\u9009\u4E00\uFF1BMCP \u53EA\u5141\u8BB8\u5DE5\u4F5C\u76EE\u5F55\u5185\u7684\u6587\u4EF6"),
+      file: z5.string().min(1).optional().describe("\u9644\u4EF6\u8DEF\u5F84\uFF08\u4E00\u4E2A\uFF0C\u6700\u5927 20 MB\uFF09\uFF1BMCP \u53EA\u5141\u8BB8\u5DE5\u4F5C\u76EE\u5F55\u5185\u7684\u6587\u4EF6"),
+      fromName: z5.string().min(1).optional().describe("\u53D1\u4EF6\u4EBA\u663E\u793A\u540D\uFF0C\u5982\u771F\u5B9E\u59D3\u540D\uFF1B\u4E0D\u5199\u65F6\u53EA\u663E\u793A\u90AE\u7BB1\u5730\u5740"),
+      replyUid: z5.string().regex(/^\d+$/).optional().describe("\u56DE\u590D\u54EA\u5C01\u90AE\u4EF6\uFF08uid \u6765\u81EA mail list\uFF09\uFF0C\u4F1A\u5E26\u4E0A\u539F\u90AE\u4EF6\u7684 Message-ID \u65B9\u4FBF\u5BF9\u65B9\u5F52\u5230\u540C\u4E00\u4F1A\u8BDD"),
+      folder: z5.string().min(1).optional().describe("replyUid \u6240\u5728\u6587\u4EF6\u5939\uFF0C\u9ED8\u8BA4 INBOX\uFF0C\u4E0E mail list \u76F8\u540C"),
+      days: int2("\u5728\u6700\u8FD1\u51E0\u5929\u91CC\u627E replyUid\uFF0C\u9ED8\u8BA4 30", 1, 365),
+      dryRun: flag("\u53EA\u68C0\u67E5\u5E76\u9884\u89C8\u5C06\u8981\u53D1\u9001\u7684\u90AE\u4EF6\uFF0C\u4E0D\u8FDE\u63A5\u53D1\u4FE1\u670D\u52A1\u5668")
+    },
+    examples: [
+      "fdu mail send --to someone@fudan.edu.cn --subject \u8BF7\u5047\u7533\u8BF7 --text-file ./\u8BF7\u5047.txt --dry-run",
+      "fdu mail send --to someone@fudan.edu.cn --subject \u4F5C\u4E1A --text \u8001\u5E08\u597D\uFF0C\u9644\u4EF6\u662F\u6211\u7684\u4F5C\u4E1A\u3002 --file ./\u4F5C\u4E1A.pdf",
+      "fdu mail send --reply-uid 123 --text \u6536\u5230\uFF0C\u8C22\u8C22\u8001\u5E08\uFF01"
+    ],
+    async run(ctx, a) {
+      if (a.text !== void 0 && a.textFile !== void 0) throw new FduError("BAD_ARGS", "--text \u548C --text-file \u53EA\u80FD\u9009\u4E00\u4E2A\u3002", "\u7528 `fdu describe mail.send` \u67E5\u770B\u53C2\u6570\u3002");
+      if (a.text === void 0 && a.textFile === void 0) throw new FduError("BAD_ARGS", "\u7F3A\u5C11\u6B63\u6587\u3002", "\u7528 --text \u5199\u6B63\u6587\uFF0C\u6216\u7528 --text-file \u6307\u5B9A\u6B63\u6587\u6587\u4EF6\u3002");
+      let text5 = a.text ?? "";
+      if (a.textFile !== void 0) {
+        const raw = readLocalFile(ctx, a.textFile, { maxBytes: 1024 * 1024, flag: "--text-file", what: "\u6B63\u6587\u6587\u4EF6" });
+        try {
+          text5 = new TextDecoder("utf-8", { fatal: true }).decode(raw.data).replace(/^\uFEFF/, "");
+        } catch {
+          throw new FduError("BAD_ARGS", "\u6B63\u6587\u6587\u4EF6\u4E0D\u662F UTF-8 \u6587\u672C\u3002", "\u628A\u6B63\u6587\u53E6\u5B58\u4E3A UTF-8 \u7F16\u7801\u7684 .txt \u6587\u4EF6\u3002");
+        }
+      }
+      const attachment = a.file ? readLocalFile(ctx, a.file, { maxBytes: MAX_MAIL_ATTACHMENT_BYTES, flag: "--file", what: "\u9644\u4EF6" }) : void 0;
+      const sender = mailSender(ctx);
+      let to = parseAddresses(a.to, "--to");
+      let subject = a.subject;
+      let inReplyTo;
+      let references;
+      let replyTo;
+      if (a.replyUid) {
+        const days = a.days ?? 30;
+        const original = (await mailClient(ctx).fetchSince(new Date(ctx.now() - days * DAY3), 1e3, a.folder)).find((m) => m.uid === a.replyUid);
+        if (!original) throw new FduError("NOT_FOUND", `\u6700\u8FD1 ${days} \u5929\u91CC\u6CA1\u6709\u627E\u5230 uid \u4E3A ${a.replyUid} \u7684\u90AE\u4EF6\uFF0C\u90AE\u4EF6\u6CA1\u6709\u53D1\u51FA\u3002`, "\u786E\u8BA4 --folder \u4E0E mail list \u76F8\u540C\uFF0C\u6216\u7528 --days \u653E\u5BBD\u8303\u56F4\u3002");
+        if (!to.length && original.from.address) to = [original.from.address];
+        subject ??= /^\s*(re|回复|答复)\s*[:：]/i.test(original.subject) ? original.subject : `Re: ${original.subject}`;
+        if (original.messageId) {
+          inReplyTo = original.messageId;
+          references = [...new Set([original.threadKey, original.messageId].filter((x) => !!x))];
+        }
+        replyTo = { uid: original.uid, folder: original.folder, from: original.from.address, subject: original.subject };
+      }
+      const mail = { fromName: a.fromName, to, cc: parseAddresses(a.cc, "--cc"), bcc: parseAddresses(a.bcc, "--bcc"), subject: subject ?? "", text: text5, attachment, inReplyTo, references };
+      try {
+        return { ...await sender.send(mail, { dryRun: a.dryRun }), replyTo: replyTo ?? null };
+      } finally {
+        if (!a.dryRun) {
+          try {
+            ctx.cache?.clear(["mail.list"]);
+          } catch {
+          }
+        }
+      }
     }
   })
 ];
@@ -6184,7 +6391,7 @@ function toolDescription(op2) {
     LOGIN_NOTE[op2.login],
     op2.sensitive ? "\u8FD4\u56DE\u7684\u662F\u9690\u79C1\u6570\u636E\uFF08\u6210\u7EE9 / \u90AE\u4EF6\u7B49\uFF09\uFF1A\u53EA\u7528\u6765\u56DE\u7B54\u7528\u6237\u672C\u4EBA\u7684\u95EE\u9898\uFF0C\u4E0D\u8981\u5199\u8FDB\u4EE3\u7801\u4ED3\u5E93\u3001\u63D0\u4EA4\u4FE1\u606F\u6216\u53D1\u7ED9\u522B\u4EBA\u3002" : "",
     op2.effect === "local-write" ? "\u4F1A\u5728\u672C\u673A\u5199\u6587\u4EF6\uFF08\u4E0D\u8986\u76D6\u5DF2\u6709\u6587\u4EF6\uFF09\u3002" : "",
-    op2.effect === "remote-write" ? "\u4F1A\u5411\u5B66\u6821\u7CFB\u7EDF\u63D0\u4EA4\u4F5C\u4E1A\u5E76\u5360\u7528\u63D0\u4EA4\u6B21\u6570\u3002\u4EC5\u5728\u7528\u6237\u660E\u786E\u8981\u6C42\u63D0\u4EA4\u6307\u5B9A\u4F5C\u4E1A\u548C\u5185\u5BB9\u65F6\u6267\u884C\uFF1B\u5148\u7528 dryRun \u9884\u89C8\u3002\u7ED3\u679C\u4E0D\u786E\u5B9A\u65F6\u5148\u6838\u9A8C\u7F51\u9875\uFF0C\u4E0D\u80FD\u81EA\u52A8\u91CD\u8BD5\u3002" : ""
+    op2.effect === "remote-write" ? op2.remoteNote ?? "\u4F1A\u5199\u5165\u5B66\u6821\u7CFB\u7EDF\u3002\u4EC5\u5728\u7528\u6237\u660E\u786E\u8981\u6C42\u65F6\u6267\u884C\uFF1B\u5148\u7528 dryRun \u9884\u89C8\uFF0C\u7ED3\u679C\u4E0D\u786E\u5B9A\u65F6\u5148\u6838\u9A8C\uFF0C\u4E0D\u80FD\u81EA\u52A8\u91CD\u8BD5\u3002" : ""
   ].filter(Boolean).join("\n");
 }
 function buildServer(session, store) {
@@ -6249,7 +6456,7 @@ var GROUPS = [
   { id: "dorm", name: "\u5BBF\u820D", desc: "\u5269\u4F59\u7535\u91CF" },
   { id: "hole", name: "\u6811\u6D1E", desc: "\u641C\u7D22\u548C\u9605\u8BFB\u6811\u6D1E\u5E16\u5B50\uFF08\u9700\u8981\u6811\u6D1E\u8D26\u53F7\uFF09" },
   { id: "danke", name: "\u86CB\u58F3\u8BFE\u8BC4", desc: "\u8BFE\u7A0B\u8BC4\u4EF7\uFF08\u9700\u8981\u6811\u6D1E\u8D26\u53F7\uFF09" },
-  { id: "mail", name: "\u5B66\u751F\u90AE\u7BB1", desc: "\u6536\u4EF6\u7BB1\uFF08IMAP \u53EA\u8BFB\uFF0C\u9700\u8981\u5BA2\u6237\u7AEF\u4E13\u7528\u5BC6\u7801\uFF09" },
+  { id: "mail", name: "\u5B66\u751F\u90AE\u7BB1", desc: "\u8BFB\u4FE1\uFF08IMAP \u53EA\u8BFB\uFF09\u548C\u6309\u8981\u6C42\u53D1\u4FE1\uFF08SMTP\uFF09\uFF0C\u9700\u8981\u5BA2\u6237\u7AEF\u4E13\u7528\u5BC6\u7801" },
   { id: "calendar", name: "\u65E5\u5386", desc: "\u628A\u8BFE\u8868\u3001\u8003\u8BD5\u3001\u4F5C\u4E1A\u622A\u6B62\u5BFC\u51FA\u6210 .ics" },
   { id: "cache", name: "\u7F13\u5B58", desc: "\u672C\u673A\u7F13\u5B58\u7684\u67E5\u8BE2\u7ED3\u679C" },
   { id: "dev", name: "\u5F00\u53D1", desc: "\u5F55\u5236\u5B66\u6821\u7CFB\u7EDF\u9875\u9762\u7528\u5230\u7684\u63A5\u53E3\u7ED3\u6784\uFF08\u63A5\u5165\u65B0\u7CFB\u7EDF\u65F6\u7528\uFF09" }
@@ -6330,7 +6537,7 @@ function helpOp(op2) {
   const d = describeOp(op2);
   const lines = [command(op2), "", op2.summary, "", `\u767B\u5F55\uFF1A${LOGIN[op2.login]}`];
   if (op2.sensitive) lines.push("\u9690\u79C1\uFF1A\u8FD4\u56DE\u6210\u7EE9 / \u6D88\u8D39 / \u501F\u9605 / \u90AE\u4EF6\u7B49\u9690\u79C1\u6570\u636E\uFF0C\u53EA\u7528\u6765\u56DE\u7B54\u4F60\u672C\u4EBA\u7684\u95EE\u9898");
-  if (op2.effect === "remote-write") lines.push("\u4F1A\u4E0A\u4F20\u5185\u5BB9\u5E76\u63D0\u4EA4\u5230\u5B66\u6821\u7CFB\u7EDF\uFF0C\u5360\u7528\u63D0\u4EA4\u6B21\u6570\uFF1B\u5148\u7528 --dry-run \u9884\u89C8\uFF0C\u7ED3\u679C\u4E0D\u786E\u5B9A\u65F6\u5148\u6838\u9A8C\u7F51\u9875\uFF0C\u4E0D\u80FD\u81EA\u52A8\u91CD\u8BD5");
+  if (op2.effect === "remote-write") lines.push(`${op2.remoteNote ?? "\u4F1A\u5199\u5165\u5B66\u6821\u7CFB\u7EDF"}\uFF08\u547D\u4EE4\u884C\u91CC\u7684 dryRun \u5199\u4F5C --dry-run\uFF09`);
   if (op2.effect === "local-write") lines.push("\u4F1A\u5728\u672C\u673A\u5199\u6587\u4EF6\uFF08\u4E0D\u8986\u76D6\u5DF2\u6709\u6587\u4EF6\uFF09");
   lines.push(op2.mcp === false ? "MCP\uFF1A\u4E0D\u63D0\u4F9B\uFF08\u9700\u8981\u5728\u7EC8\u7AEF\u91CC\u64CD\u4F5C\uFF09" : `MCP \u5DE5\u5177\uFF1A${d.mcpTool}`);
   if (d.params.length) {

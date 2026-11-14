@@ -15,7 +15,7 @@ export const GROUPS: { id: string; name: string; desc: string }[] = [
   { id: 'dorm', name: '宿舍', desc: '剩余电量' },
   { id: 'hole', name: '树洞', desc: '搜索和阅读树洞帖子（需要树洞账号）' },
   { id: 'danke', name: '蛋壳课评', desc: '课程评价（需要树洞账号）' },
-  { id: 'mail', name: '学生邮箱', desc: '收件箱（IMAP 只读，需要客户端专用密码）' },
+  { id: 'mail', name: '学生邮箱', desc: '读信（IMAP 只读）和按要求发信（SMTP），需要客户端专用密码' },
   { id: 'calendar', name: '日历', desc: '把课表、考试、作业截止导出成 .ics' },
   { id: 'cache', name: '缓存', desc: '本机缓存的查询结果' },
   { id: 'dev', name: '开发', desc: '录制学校系统页面用到的接口结构（接入新系统时用）' },

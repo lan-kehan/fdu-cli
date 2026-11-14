@@ -22,6 +22,7 @@ import { LibrarySearch } from './services/library-search';
 import { OPAC, readHistory, readLoans, type GetJson as LibGetJson } from './services/library-account';
 import type { Page } from 'playwright-core';
 import { DEFAULT_FUDAN_STUDENT_IMAP, ImapMailClient } from './services/mail';
+import { DEFAULT_FUDAN_STUDENT_SMTP, MAX_MAIL_ATTACHMENT_BYTES, SmtpMailSender, parseAddresses } from './services/mail-send';
 import { parseNoticeDetail, parseNoticeList } from './services/notice-parse';
 import { findNoticeSource, NOTICE_SOURCES } from './services/notice-sources';
 import { TreeholeClient, type HoleTokens } from './services/treehole';
@@ -77,6 +78,8 @@ export interface Op {
   effect: Effect;
   /** 需要在终端里输入密码的操作不开放给 MCP */
   mcp?: boolean;
+  /** remote-write 操作会对学校系统做什么、要注意什么（帮助、MCP 描述和命令参考共用） */
+  remoteNote?: string;
   /** MCP 里不开放的参数（如会丢掉登录状态的 force） */
   mcpOmit?: string[];
   examples?: string[];
@@ -111,23 +114,25 @@ const shanghaiDate = (iso?: string) => iso ? new Date(iso).toLocaleString('zh-CN
 const elearning = (ctx: Ctx) => new CanvasClient(sessionAuth(ctx.session));
 
 /** MCP 上传只允许当前目录内的真实文件，解析符号链接后再检查。 */
-export function readSubmissionFile(ctx: Pick<Ctx, 'cwd' | 'mcp'>, file: string) {
+export function readLocalFile(ctx: Pick<Ctx, 'cwd' | 'mcp'>, file: string, limit: { maxBytes: number; flag: string; what: string }) {
   let fd: number | undefined;
   try {
     const path = realpathSync(resolve(ctx.cwd, file));
     const rel = relative(realpathSync(ctx.cwd), path);
     if (ctx.mcp && (rel === '..' || rel.startsWith('../') || rel.startsWith('..\\') || isAbsolute(rel))) {
-      throw new FduError('BAD_ARGS', 'MCP 只能上传当前目录内的文件（包括符号链接指向的文件）。', '把待提交文件放到当前工作目录内。');
+      throw new FduError('BAD_ARGS', `MCP 只能读取当前目录内的${limit.what}（包括符号链接指向的文件）。`, `把${limit.what}放到当前工作目录内。`);
     }
     fd = openSync(path, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK);
     const stat = fstatSync(fd);
-    if (!stat.isFile() || stat.size === 0 || stat.size > MAX_SUBMISSION_BYTES) throw new FduError('BAD_ARGS', '请选择非空普通文件，大小不能超过 200 MB。', '检查 --file 指定的路径和文件大小。');
+    if (!stat.isFile() || stat.size === 0 || stat.size > limit.maxBytes) throw new FduError('BAD_ARGS', `请选择非空普通文件，大小不能超过 ${Math.round(limit.maxBytes / 1024 / 1024)} MB。`, `检查 ${limit.flag} 指定的路径和文件大小。`);
     return { name: basename(path), data: new Uint8Array(readFileSync(fd)) };
   } catch (e) {
     if (e instanceof FduError) throw e;
-    throw new FduError('BAD_ARGS', '无法读取待提交的文件。', '检查 --file 路径是否存在，以及当前用户是否有读取权限。');
+    throw new FduError('BAD_ARGS', `无法读取${limit.what}。`, `检查 ${limit.flag} 路径是否存在，以及当前用户是否有读取权限。`);
   } finally { if (fd !== undefined) closeSync(fd); }
 }
+
+export const readSubmissionFile = (ctx: Pick<Ctx, 'cwd' | 'mcp'>, file: string) => readLocalFile(ctx, file, { maxBytes: MAX_SUBMISSION_BYTES, flag: '--file', what: '待提交的文件' });
 
 /** 课程：id，或课程名 / 课程代码里的关键词 */
 async function resolveCourses(ctx: Ctx, query?: string): Promise<CanvasCourse[]> {
@@ -183,7 +188,8 @@ export function safeTarget(dir: string, name: string): string {
 // ---------- 树洞、邮箱 ----------
 const HOLE = 'hole.json';
 const MAIL = 'mail.json';
-interface MailConfig { host: string; port: number; user: string; password: string }
+/** host / port 是 IMAP（读）；smtpHost / smtpPort 是 SMTP（发），旧配置没有时用默认值 */
+interface MailConfig { host: string; port: number; user: string; password: string; smtpHost?: string; smtpPort?: number }
 
 /** 经过 WebVPN 的请求在浏览器里发（WebVPN 只认真正的浏览器），其余照常 */
 function viaWebvpnAware(ctx: Ctx, url: string, init?: { method?: string; headers?: Record<string, string>; body?: string; timeoutMs?: number }) {
@@ -202,10 +208,19 @@ function treehole(ctx: Ctx): TreeholeClient {
   });
 }
 
-function mailClient(ctx: Ctx): ImapMailClient {
+function mailConfig(ctx: Ctx): MailConfig {
   const cfg = ctx.store.readJson<MailConfig>(MAIL);
   if (!cfg?.user || !cfg.password) throw new FduError('NEED_MAIL_SETUP', '还没有配置学生邮箱。', '运行 `fdu mail setup --user 学号@m.fudan.edu.cn`，输入网页邮箱里生成的客户端专用密码。');
-  return new ImapMailClient(cfg);
+  return cfg;
+}
+
+function mailClient(ctx: Ctx): ImapMailClient {
+  return new ImapMailClient(mailConfig(ctx));
+}
+
+function mailSender(ctx: Ctx): SmtpMailSender {
+  const cfg = mailConfig(ctx);
+  return new SmtpMailSender({ host: cfg.smtpHost ?? DEFAULT_FUDAN_STUDENT_SMTP.host, port: cfg.smtpPort ?? DEFAULT_FUDAN_STUDENT_SMTP.port, user: cfg.user, password: cfg.password });
 }
 
 /** iCourse 客户端：复用复旦账号登录状态，iCourse 自己的登录在无界面浏览器里自动完成 */
@@ -670,6 +685,7 @@ export const OPS: Op[] = [
   op({
     name: 'elearning.submit', summary: '提交作业（文件、HTML 文本或网址，三选一）：复用 fdu 登录；--dry-run 仅预览，已有提交需 --resubmit；发送后核验，不自动重试。',
     login: 'uis', effect: 'remote-write', sensitive: true, cache: false,
+    remoteNote: '会向学校系统提交作业并占用提交次数。仅在用户明确要求提交指定作业和内容时执行；先用 dryRun 预览。结果不确定时先核验网页，不能自动重试。',
     params: {
       course: z.string().min(1).describe('课程 id 或唯一名称关键词'),
       assignment: z.string().regex(/^[1-9]\d*$/).describe('作业 id，来自 elearning assignments'),
@@ -1327,11 +1343,14 @@ export const OPS: Op[] = [
 
   // ======================= 学生邮箱 =======================
   op({
-    name: 'mail.setup', summary: '配置学生邮箱（IMAP，只读）：需要网页邮箱里生成的客户端专用密码；密码以明文保存在本机配置目录（权限 600）。', login: 'none', effect: 'auth', mcp: false,
-    params: { user: z.string().email().describe('邮箱地址'), host: z.string().optional().describe(`IMAP 服务器，默认 ${DEFAULT_FUDAN_STUDENT_IMAP.host}`), port: int('端口，默认 993', 1, 65535) },
+    name: 'mail.setup', summary: '配置学生邮箱（IMAP 读信，SMTP 供 mail send 发信）：需要网页邮箱里生成的客户端专用密码；密码以明文保存在本机配置目录（权限 600）。', login: 'none', effect: 'auth', mcp: false,
+    params: {
+      user: z.string().email().describe('邮箱地址'), host: z.string().optional().describe(`IMAP 服务器，默认 ${DEFAULT_FUDAN_STUDENT_IMAP.host}`), port: int('端口，默认 993', 1, 65535),
+      smtpHost: z.string().optional().describe(`SMTP 发信服务器，默认 ${DEFAULT_FUDAN_STUDENT_SMTP.host}`), smtpPort: int(`SMTP 端口，默认 ${DEFAULT_FUDAN_STUDENT_SMTP.port}（465 用 SSL，其他端口要求 STARTTLS）`, 1, 65535),
+    },
     async run(ctx, a) {
       const password = await needPrompt(ctx)('客户端专用密码（不会显示）：', { hidden: true });
-      const cfg: MailConfig = { host: a.host ?? DEFAULT_FUDAN_STUDENT_IMAP.host, port: a.port ?? DEFAULT_FUDAN_STUDENT_IMAP.port, user: a.user, password };
+      const cfg: MailConfig = { host: a.host ?? DEFAULT_FUDAN_STUDENT_IMAP.host, port: a.port ?? DEFAULT_FUDAN_STUDENT_IMAP.port, user: a.user, password, ...(a.smtpHost ? { smtpHost: a.smtpHost } : {}), ...(a.smtpPort ? { smtpPort: a.smtpPort } : {}) };
       if (!(await new ImapMailClient(cfg).ping())) throw new FduError('NEED_MAIL_SETUP', '连不上邮箱。', '检查邮箱地址、客户端专用密码，并确认网页邮箱已开启 IMAP。');
       ctx.store.writeJson(MAIL, cfg);
       return { configured: true, user: cfg.user, file: ctx.store.path(MAIL) };
@@ -1365,6 +1384,66 @@ export const OPS: Op[] = [
       const m = (await mailClient(ctx).fetchSince(new Date(ctx.now() - (a.days ?? 30) * DAY), 1000, a.folder)).find((x) => x.uid === a.uid);
       if (!m) throw new FduError('NOT_FOUND', `最近 ${a.days ?? 30} 天里没有找到 uid 为 ${a.uid} 的邮件。`, '确认 --folder 与 mail list 相同，或用 --days 放宽范围。');
       return m;
+    },
+  }),
+  op({
+    name: 'mail.send', summary: '用学生邮箱发一封纯文本邮件（可带一个附件，或按 uid 回复）：--dry-run 仅预览；发出后报告服务器接收结果，不自动重发。',
+    login: 'mail', effect: 'remote-write', sensitive: true, cache: false,
+    remoteNote: '会以用户本人的学生邮箱向他人发送邮件，发出后无法撤回。仅在用户明确要求发送、并确认过收件人和内容时执行；先用 dryRun 预览给用户看。结果不确定（MAIL_UNKNOWN）时先核对已发送，不能自动重发。',
+    params: {
+      to: z.string().min(1).optional().describe('收件人，多个用逗号分隔；用 replyUid 回复时默认是原发件人'),
+      cc: z.string().min(1).optional().describe('抄送，多个用逗号分隔'),
+      bcc: z.string().min(1).optional().describe('密送，多个用逗号分隔'),
+      subject: z.string().min(1).optional().describe('主题；用 replyUid 回复时默认是「Re: 原主题」'),
+      text: z.string().min(1).optional().describe('正文（纯文本），与 textFile 二选一'),
+      textFile: z.string().min(1).optional().describe('从 UTF-8 文本文件读正文（最大 1 MB），与 text 二选一；MCP 只允许工作目录内的文件'),
+      file: z.string().min(1).optional().describe('附件路径（一个，最大 20 MB）；MCP 只允许工作目录内的文件'),
+      fromName: z.string().min(1).optional().describe('发件人显示名，如真实姓名；不写时只显示邮箱地址'),
+      replyUid: z.string().regex(/^\d+$/).optional().describe('回复哪封邮件（uid 来自 mail list），会带上原邮件的 Message-ID 方便对方归到同一会话'),
+      folder: z.string().min(1).optional().describe('replyUid 所在文件夹，默认 INBOX，与 mail list 相同'),
+      days: int('在最近几天里找 replyUid，默认 30', 1, 365),
+      dryRun: flag('只检查并预览将要发送的邮件，不连接发信服务器'),
+    },
+    examples: [
+      "fdu mail send --to someone@fudan.edu.cn --subject 请假申请 --text-file ./请假.txt --dry-run",
+      "fdu mail send --to someone@fudan.edu.cn --subject 作业 --text 老师好，附件是我的作业。 --file ./作业.pdf",
+      "fdu mail send --reply-uid 123 --text 收到，谢谢老师！",
+    ],
+    async run(ctx, a) {
+      if (a.text !== undefined && a.textFile !== undefined) throw new FduError('BAD_ARGS', '--text 和 --text-file 只能选一个。', '用 `fdu describe mail.send` 查看参数。');
+      if (a.text === undefined && a.textFile === undefined) throw new FduError('BAD_ARGS', '缺少正文。', '用 --text 写正文，或用 --text-file 指定正文文件。');
+      let text = a.text ?? '';
+      if (a.textFile !== undefined) {
+        const raw = readLocalFile(ctx, a.textFile, { maxBytes: 1024 * 1024, flag: '--text-file', what: '正文文件' });
+        try { text = new TextDecoder('utf-8', { fatal: true }).decode(raw.data).replace(/^\uFEFF/, ''); }
+        catch { throw new FduError('BAD_ARGS', '正文文件不是 UTF-8 文本。', '把正文另存为 UTF-8 编码的 .txt 文件。'); }
+      }
+      const attachment = a.file ? readLocalFile(ctx, a.file, { maxBytes: MAX_MAIL_ATTACHMENT_BYTES, flag: '--file', what: '附件' }) : undefined;
+      const sender = mailSender(ctx);
+      let to = parseAddresses(a.to, '--to');
+      let subject = a.subject;
+      let inReplyTo: string | undefined;
+      let references: string[] | undefined;
+      let replyTo: { uid: string; folder: string; from: string; subject: string } | undefined;
+      if (a.replyUid) {
+        const days = a.days ?? 30;
+        const original = (await mailClient(ctx).fetchSince(new Date(ctx.now() - days * DAY), 1000, a.folder)).find((m) => m.uid === a.replyUid);
+        if (!original) throw new FduError('NOT_FOUND', `最近 ${days} 天里没有找到 uid 为 ${a.replyUid} 的邮件，邮件没有发出。`, '确认 --folder 与 mail list 相同，或用 --days 放宽范围。');
+        if (!to.length && original.from.address) to = [original.from.address];
+        subject ??= /^\s*(re|回复|答复)\s*[:：]/i.test(original.subject) ? original.subject : `Re: ${original.subject}`;
+        if (original.messageId) {
+          inReplyTo = original.messageId;
+          references = [...new Set([original.threadKey, original.messageId].filter((x): x is string => !!x))];
+        }
+        replyTo = { uid: original.uid, folder: original.folder, from: original.from.address, subject: original.subject };
+      }
+      const mail = { fromName: a.fromName, to, cc: parseAddresses(a.cc, '--cc'), bcc: parseAddresses(a.bcc, '--bcc'), subject: subject ?? '', text, attachment, inReplyTo, references };
+      try {
+        return { ...await sender.send(mail, { dryRun: a.dryRun }), replyTo: replyTo ?? null };
+      } finally {
+        // 结果不确定时也可能已经发出，已发送列表的缓存不能再用
+        if (!a.dryRun) { try { ctx.cache?.clear(['mail.list']); } catch { /* 缓存清理失败不覆盖发信结果 */ } }
+      }
     },
   }),
 ];

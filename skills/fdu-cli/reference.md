@@ -125,7 +125,7 @@ fdu doctor
 
 提交作业（文件、HTML 文本或网址，三选一）：复用 fdu 登录；--dry-run 仅预览，已有提交需 --resubmit；发送后核验，不自动重试。
 
-登录：复旦账号 · **会提交到学校系统（不自动重试）** · **隐私数据** · MCP：`elearning_submit`
+登录：复旦账号 · **会写入学校系统 / 对外发送（不自动重试）** · **隐私数据** · MCP：`elearning_submit`
 
 | 参数 | 类型 | 必填 | 说明 |
 |---|---|---|---|
@@ -818,11 +818,11 @@ fdu hole latest --division 1 --before 2026-11-01T12:00:00+08:00
 
 ## 学生邮箱
 
-收件箱（IMAP 只读，需要客户端专用密码）
+读信（IMAP 只读）和按要求发信（SMTP），需要客户端专用密码
 
 ### `fdu mail setup`
 
-配置学生邮箱（IMAP，只读）：需要网页邮箱里生成的客户端专用密码；密码以明文保存在本机配置目录（权限 600）。
+配置学生邮箱（IMAP 读信，SMTP 供 mail send 发信）：需要网页邮箱里生成的客户端专用密码；密码以明文保存在本机配置目录（权限 600）。
 
 登录：不用 · 登录 / 退出 · 仅命令行
 
@@ -831,6 +831,8 @@ fdu hole latest --division 1 --before 2026-11-01T12:00:00+08:00
 | `--user` | string | 是 | 邮箱地址 |
 | `--host` | string |  | IMAP 服务器，默认 imap.exmail.qq.com |
 | `--port` | integer |  | 端口，默认 993 |
+| `--smtp-host` | string |  | SMTP 发信服务器，默认 smtp.exmail.qq.com |
+| `--smtp-port` | integer |  | SMTP 端口，默认 465（465 用 SSL，其他端口要求 STARTTLS） |
 
 ### `fdu mail forget`
 
@@ -873,6 +875,33 @@ fdu mail list --folder sent --days 7
 | `--uid` | string | 是 | 文件夹内的邮件 UID，来自 mail list |
 | `--days` | integer |  | 在最近几天里找，默认 30 |
 | `--folder` | string |  | 默认 INBOX；sent 自动定位已发送，其他路径来自 mail folders |
+
+### `fdu mail send`
+
+用学生邮箱发一封纯文本邮件（可带一个附件，或按 uid 回复）：--dry-run 仅预览；发出后报告服务器接收结果，不自动重发。
+
+登录：学生邮箱 · **会写入学校系统 / 对外发送（不自动重试）** · **隐私数据** · MCP：`mail_send`
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `--to` | string |  | 收件人，多个用逗号分隔；用 replyUid 回复时默认是原发件人 |
+| `--cc` | string |  | 抄送，多个用逗号分隔 |
+| `--bcc` | string |  | 密送，多个用逗号分隔 |
+| `--subject` | string |  | 主题；用 replyUid 回复时默认是「Re: 原主题」 |
+| `--text` | string |  | 正文（纯文本），与 textFile 二选一 |
+| `--text-file` | string |  | 从 UTF-8 文本文件读正文（最大 1 MB），与 text 二选一；MCP 只允许工作目录内的文件 |
+| `--file` | string |  | 附件路径（一个，最大 20 MB）；MCP 只允许工作目录内的文件 |
+| `--from-name` | string |  | 发件人显示名，如真实姓名；不写时只显示邮箱地址 |
+| `--reply-uid` | string |  | 回复哪封邮件（uid 来自 mail list），会带上原邮件的 Message-ID 方便对方归到同一会话 |
+| `--folder` | string |  | replyUid 所在文件夹，默认 INBOX，与 mail list 相同 |
+| `--days` | integer |  | 在最近几天里找 replyUid，默认 30 |
+| `--dry-run` | boolean |  | 只检查并预览将要发送的邮件，不连接发信服务器 |
+
+```bash
+fdu mail send --to someone@fudan.edu.cn --subject 请假申请 --text-file ./请假.txt --dry-run
+fdu mail send --to someone@fudan.edu.cn --subject 作业 --text 老师好，附件是我的作业。 --file ./作业.pdf
+fdu mail send --reply-uid 123 --text 收到，谢谢老师！
+```
 
 ## 日历
 
